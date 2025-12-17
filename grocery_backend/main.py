@@ -293,7 +293,7 @@ def add_to_cart(user_id: str, item: CartItemCreate, current_user: str = Depends(
     item_dict["user_id"] = user_id
     result = cart_collection.insert_one(item_dict)
     item_dict["_id"] = result.inserted_id
-    return item_helper(item_dict, "cart")npm create vite@latest grocery-frontend
+    return item_helper(item_dict, "cart")
 
 
 @app.get("/cart/{user_id}", response_model=list[CartItemResponse])
