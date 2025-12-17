@@ -1,0 +1,23 @@
+/* App.css */
+@import "tailwindcss";
+.app-container {
+  padding: 20px;
+  font-family: Arial, sans-serif;
+}
+
+h1 {
+  color: #2e7d32; /* grocery green */
+}
+
+button {
+  padding: 8px 16px;
+  background-color: #2e7d32;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+button:hover {
+  background-color: #1b5e20;
+}
