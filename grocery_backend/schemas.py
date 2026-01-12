@@ -32,17 +32,22 @@ class UserResponse(UserBase):
     id: str
 
 
-
 class ProductBase(BaseModel):
-    name: str
-    brand: str
-    description: str
-    price: float
-    category: Optional[str] = None        # e.g., "Electronics"
-    stock: int = 0                        # how many units available
-    images: Optional[List[str]] = []      # array of image URLs
-    rating: Optional[float] = 0.0         # overall rating
-    tags: Optional[List[str]] = []        # e.g. ["laptop", "gaming"]
+    name: Optional[str] = None
+    brand: Optional[str] = None
+    description: Optional[str] = None
+    price: Optional[float] = 0.0
+
+    category: Optional[str] = None
+    stock: Optional[int] = 0
+
+    # OpenFoodFacts-compatible
+    image_url: Optional[str] = None
+
+    # Optional metadata
+    rating: Optional[float] = None
+    tags: Optional[List[str]] = None
+
 
 
 class ProductCreate(ProductBase):
@@ -63,6 +68,7 @@ class ProductUpdate(BaseModel):
 
 class ProductResponse(ProductBase):
     id: str
+
 
 
 class InvoiceProduct(BaseModel):

@@ -8,6 +8,8 @@ from fastapi.encoders import jsonable_encoder
 from datetime import datetime
 from jose import JWTError, jwt
 import os
+import requests
+import random
 
 app = FastAPI()
 
@@ -31,6 +33,20 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
 # ===============================
 # Helper Functions
 # ===============================
+
+def off_product_mapper(p: dict) -> dict:
+    return {
+        "name": p.get("product_name", "Unknown Product"),
+        "description": p.get("generic_name"),
+        "brand": p.get("brands"),
+        "price": round(random.uniform(1, 10,),2),  # OpenFoodFacts does NOT provide prices
+        "category": p.get("categories"),
+        "stock": random.randint(1, 100),
+        "image_url": p.get("image_url"),
+        "barcode": p.get("code")  # useful for deduplication
+    }
+
+
 def user_helper(user) -> dict:
     return {
         "id": str(user["_id"]),
@@ -44,16 +60,25 @@ def user_helper(user) -> dict:
 
 
 def product_helper(product) -> dict:
+    image_url = product.get("image_url")
+
+    # Safety check
+    if not isinstance(image_url, str):
+        image_url = None
+
     return {
         "id": str(product["_id"]),
-        "name": product["name"],
-        "description": product.get("description"),
+        "name": product.get("name"),
         "brand": product.get("brand"),
-        "price": product["price"],
+        "description": product.get("description"),
+        "price": product.get("price", 0.0),
         "category": product.get("category"),
-        "stock": product.get("stock"),
-        "image_url": product.get("image_url")
+        "stock": product.get("stock", 0),
+        "image_url": image_url,
+        "rating": product.get("rating"),
+        "tags": product.get("tags", [])
     }
+
 
 def invoice_helper(invoice) -> dict:
     return {
@@ -155,6 +180,52 @@ def delete_user(user_id: str, current_user: str = Depends(get_current_user)):
 # ===============================
 # PRODUCT ROUTES
 # ===============================
+
+@app.post("/import/openfoodfacts")
+def import_openfoodfacts_products(current_user: str = Depends(get_current_user)):
+    BASE_URL = "https://world.openfoodfacts.net/api/v2/search"
+    HEADERS = {
+        "User-Agent": "FastAPI-App/1.0 (contact@example.com)"
+    }
+
+    inserted_count = 0
+    skipped_count = 0
+
+    for page in range(0, 11):
+        params = {
+            "page": page,
+            "page_size": 100,
+            "fields": "code,product_name,generic_name,brands,categories,image_url"
+        }
+
+        response = requests.get(BASE_URL, headers=HEADERS, params=params)
+        if response.status_code != 200:
+            continue
+
+        data = response.json()
+        products = data.get("products", [])
+
+        for p in products:
+            barcode = p.get("code")
+            if not barcode:
+                continue
+
+            # Avoid duplicates using barcode
+            if products_collection.find_one({"barcode": barcode}):
+                skipped_count += 1
+                continue
+
+            product_data = off_product_mapper(p)
+            products_collection.insert_one(product_data)
+            inserted_count += 1
+
+    return {
+        "message": "Import completed",
+        "inserted": inserted_count,
+        "skipped": skipped_count
+    }
+
+
 @app.post("/products", response_model=ProductResponse)
 def create_product(product: ProductCreate, current_user: str = Depends(get_current_user)):
     product_dict = jsonable_encoder(product)
