@@ -1,0 +1,11 @@
+/* src/index.css */
+
+/* Tailwind base styles */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Optional: Add your own global styles below */
+body {
+  @apply bg-gray-100 text-gray-900;
+}
