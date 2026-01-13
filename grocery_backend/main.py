@@ -8,14 +8,17 @@ from fastapi.encoders import jsonable_encoder
 from datetime import datetime
 from jose import JWTError, jwt
 import os
-
+from fastapi.openapi.models import OAuthFlows as OAuthFlowsModel
+from fastapi.security import OAuth2
 app = FastAPI()
+
+
+
 
 # JWT Auth setup
 SECRET_KEY = os.getenv("SECRET_KEY", "your_secret_key_here")  # fallback key
 ALGORITHM = "HS256"
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/token")
-
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 def get_current_user(token: str = Depends(oauth2_scheme)):
     try:
@@ -96,7 +99,9 @@ def calculate_total_amount(products: list) -> float:
 # ===============================
 @app.post("/token")
 def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    print("Login attempt for user:", form_data.username)
     user = users_collection.find_one({"username": form_data.username})
+    print(user)
     if not user or not verify_password(form_data.password, user["password"]):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     token = create_access_token({"sub": user["username"]})
@@ -107,15 +112,24 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
 # USER ROUTES
 # ===============================
 @app.post("/users", response_model=UserResponse)
-def create_user(user: UserCreate, current_user: str = Depends(get_current_user)):
+def create_user(user: UserCreate):
     if users_collection.find_one({"username": user.username}):
         raise HTTPException(status_code=400, detail="Username already exists")
+
+    if users_collection.find_one({"email": user.email}):
+        raise HTTPException(status_code=400, detail="Email already exists")
+
     hashed_pwd = hash_password(user.password)
+
     user_dict = user.dict()
     user_dict["password"] = hashed_pwd
+    user_dict["created_at"] = datetime.utcnow().isoformat()
+
     result = users_collection.insert_one(user_dict)
     user_dict["_id"] = result.inserted_id
+
     return user_helper(user_dict)
+
 
 
 @app.get("/users", response_model=list[UserResponse])
@@ -308,6 +322,65 @@ def delete_cart_item(user_id: str, product_id: str, current_user: str = Depends(
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Item not found in cart")
     return {"message": "Item removed from cart"}
+
+@app.get("/kpi/total-users")
+def total_users_kpi(current_user: str = Depends(get_current_user)):
+    total_users = users_collection.count_documents({})
+    return {"total_users": total_users}
+
+@app.get("/kpi/total-products")
+def total_products_kpi(current_user: str = Depends(get_current_user)):
+    total_products = products_collection.count_documents({})
+    return {"total_products": total_products}
+
+@app.get("/kpi/total-invoices")
+def total_invoices_kpi(current_user: str = Depends(get_current_user)):
+    total_invoices = invoices_collection.count_documents({})
+    return {"total_invoices": total_invoices}
+
+@app.get("/kpi/total-revenue")
+def total_revenue_kpi(current_user: str = Depends(get_current_user)):
+    invoices = invoices_collection.find({})
+    total_revenue = sum(invoice.get("total_amount", 0) for invoice in invoices)
+    return {"total_revenue": total_revenue}
+
+@app.get("/kpi/average-order-value")
+def average_order_value_kpi(current_user: str = Depends(get_current_user)):
+    total_invoices = invoices_collection.count_documents({})
+    invoices = invoices_collection.find({})
+    total_revenue = sum(invoice.get("total_amount", 0) for invoice in invoices)
+    average_order_value = total_revenue / total_invoices if total_invoices > 0 else 0
+    return {"average_order_value": average_order_value}
+
+@app.get("/kpi/total-cart-items")
+def total_cart_items_kpi(current_user: str = Depends(get_current_user)):
+    total_cart_items = sum(item.get("quantity", 1) for item in cart_collection.find({}))
+    return {"total_cart_items": total_cart_items}
+
+@app.get("/kpi/total-wishlist-items")
+def total_wishlist_items_kpi(current_user: str = Depends(get_current_user)):
+    total_wishlist_items = wishlist_collection.count_documents({})
+    return {"total_wishlist_items": total_wishlist_items}
+
+@app.get("/kpi/active-customers")
+def active_customers_kpi(current_user: str = Depends(get_current_user)):
+    active_customer_ids = invoices_collection.distinct("user_id")
+    active_customers = len(active_customer_ids)
+    return {"active_customers": active_customers}
+
+@app.get("/kpi/top-selling-products")
+def top_selling_products_kpi(current_user: str = Depends(get_current_user)):
+    product_counts = {}
+    for invoice in invoices_collection.find({}):
+        for item in invoice.get("products", []):
+            pid = item["product_id"]
+            product_counts[pid] = product_counts.get(pid, 0) + item.get("quantity", 1)
+    top_selling_products = sorted(
+        [{"product_id": pid, "quantity_sold": qty} for pid, qty in product_counts.items()],
+        key=lambda x: x["quantity_sold"],
+        reverse=True
+    )[:5]  # top 5 products
+    return {"top_selling_products": top_selling_products}
 
 
 if __name__ == "__main__":
