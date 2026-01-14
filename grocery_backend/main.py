@@ -10,10 +10,18 @@ from jose import JWTError, jwt
 import os
 from fastapi.openapi.models import OAuthFlows as OAuthFlowsModel
 from fastapi.security import OAuth2
+from fastapi.middleware.cors import CORSMiddleware
+
 app = FastAPI()
 
-
-
+# Enable CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins (for development)
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # JWT Auth setup
 SECRET_KEY = os.getenv("SECRET_KEY", "your_secret_key_here")  # fallback key
