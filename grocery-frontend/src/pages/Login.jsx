@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export default function Login() {
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -16,73 +16,110 @@ export default function Login() {
     setLoading(true);
 
     try {
-      await login(username, password);
+      await login(email, password);
       navigate('/products');
     } catch (err) {
-      setError(err.response?.data?.detail || 'Login failed. Please try again.');
+      setError(err.response?.data?.detail || 'Login failed. Please check your credentials.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 flex items-center justify-center px-4 py-12">
-      <div className="w-full max-w-md bg-white rounded-xl shadow-xl p-8">
-        <h1 className="text-3xl font-bold text-center text-gray-800 mb-2">Welcome Back</h1>
-        <p className="text-center text-gray-600 mb-8">Sign in to your account</p>
+    <div style={{
+      minHeight: '100vh',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingTop: '2rem',
+      paddingBottom: '2rem',
+      backgroundColor: '#f9fafb'
+    }}>
+      <div className="w-100" style={{ maxWidth: '400px' }}>
+        <div className="card auth-card">
+          <div className="card-body p-5">
+            <div className="text-center mb-4">
+              <h1 style={{ fontSize: '2rem', fontWeight: 700, color: '#10b981' }}>
+                <i className="bi bi-shop"></i> GroceryHub
+              </h1>
+              <h2 className="mt-3 mb-2">Welcome Back</h2>
+              <p className="text-muted">Sign in to your account</p>
+            </div>
 
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
-            {error}
+            {error && (
+              <div className="alert alert-danger alert-dismissible fade show" role="alert">
+                <i className="bi bi-exclamation-circle"></i> {error}
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setError('')}
+                ></button>
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit}>
+              <div className="mb-3">
+                <label htmlFor="email" className="form-label">Email Address</label>
+                <input
+                  type="email"
+                  className="form-control auth-input"
+                  id="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  disabled={loading}
+                />
+              </div>
+
+              <div className="mb-3">
+                <label htmlFor="password" className="form-label">Password</label>
+                <input
+                  type="password"
+                  className="form-control auth-input"
+                  id="password"
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  disabled={loading}
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="btn btn-primary w-100 mb-3"
+                disabled={loading}
+              >
+                {loading ? (
+                  <>
+                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                    Signing in...
+                  </>
+                ) : (
+                  <>
+                    <i className="bi bi-box-arrow-in-right"></i> Sign In
+                  </>
+                )}
+              </button>
+            </form>
+
+            <div className="text-center">
+              <p className="text-muted mb-0">
+                Don't have an account?{' '}
+                <Link to="/register" style={{ color: '#10b981', fontWeight: 500, textDecoration: 'none' }}>
+                  Create one now
+                </Link>
+              </p>
+            </div>
+
+            <hr className="my-4" />
+
+            <p className="text-center text-muted small mb-0">
+              <i className="bi bi-shield-check"></i> Secure login with JWT authentication
+            </p>
           </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <div>
-            <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-2">
-              Username
-            </label>
-            <input
-              id="username"
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="Enter your username"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition"
-              required
-            />
-          </div>
-
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter your password"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition"
-              required
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 disabled:opacity-50 text-white font-semibold py-3 rounded-lg transition duration-200"
-          >
-            {loading ? 'Signing in...' : 'Sign In'}
-          </button>
-        </form>
-
-        <p className="text-center text-gray-600 mt-6">
-          Don't have an account?{' '}
-          <Link to="/register" className="text-green-600 hover:text-green-700 font-semibold">
-            Register here
-          </Link>
-        </p>
+        </div>
       </div>
     </div>
   );

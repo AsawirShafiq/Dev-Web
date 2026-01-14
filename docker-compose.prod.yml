@@ -1,0 +1,90 @@
+version: '3.8'
+
+services:
+  # MongoDB Database Service
+  mongodb:
+    image: mongo:6.0
+    container_name: grocery_mongodb_prod
+    # Don't expose port 27017 to public in production
+    ports:
+      - "127.0.0.1:27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_PASSWORD:-change_me_in_production}
+      MONGO_INITDB_DATABASE: grocery_db
+    volumes:
+      - mongodb_data:/data/db
+      - mongodb_config:/data/configdb
+    networks:
+      - grocery_network
+    restart: always
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend Service (FastAPI)
+  backend:
+    build:
+      context: ./grocery_backend
+      dockerfile: Dockerfile
+    container_name: grocery_backend_prod
+    ports:
+      - "8000:8000"
+    environment:
+      MONGODB_URL: mongodb://admin:${MONGODB_PASSWORD:-change_me_in_production}@mongodb:27017/grocery_db
+      SECRET_KEY: ${SECRET_KEY:-change_me_in_production_to_a_secure_random_string}
+      ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 60
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - grocery_network
+    restart: always
+    # Remove --reload for production
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
+
+  # Frontend Service (React)
+  frontend:
+    build:
+      context: ./grocery-frontend
+      dockerfile: Dockerfile
+    container_name: grocery_frontend_prod
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_URL: ${FRONTEND_API_URL:-http://localhost:8000}
+    depends_on:
+      - backend
+    networks:
+      - grocery_network
+    restart: always
+
+  # Optional: Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: grocery_nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - grocery_network
+    restart: always
+
+volumes:
+  mongodb_data:
+    driver: local
+  mongodb_config:
+    driver: local
+
+networks:
+  grocery_network:
+    driver: bridge

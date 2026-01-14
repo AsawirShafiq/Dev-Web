@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  # MongoDB Database Service
+  mongodb:
+    image: mongo:6.0
+    container_name: grocery_mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password123
+      MONGO_INITDB_DATABASE: grocery_db
+    volumes:
+      - mongodb_data:/data/db
+      - mongodb_config:/data/configdb
+    networks:
+      - grocery_network
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend Service (FastAPI)
+  backend:
+    build: ./grocery_backend
+    container_name: grocery_backend
+    ports:
+      - "8000:8000"
+    environment:
+      MONGODB_URL: mongodb://admin:password123@mongodb:27017/grocery_db?authSource=admin
+      SECRET_KEY: your_secret_key_here_change_in_production
+      ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 60
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    volumes:
+      - ./grocery_backend:/app
+    networks:
+      - grocery_network
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Frontend Service (React)
+  frontend:
+    build: ./grocery-frontend
+    container_name: grocery_frontend
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_URL: http://backend:8000
+    depends_on:
+      - backend
+    volumes:
+      - ./grocery-frontend/src:/app/src
+    networks:
+      - grocery_network
+
+volumes:
+  mongodb_data:
+    driver: local
+  mongodb_config:
+    driver: local
+
+networks:
+  grocery_network:
+    driver: bridge

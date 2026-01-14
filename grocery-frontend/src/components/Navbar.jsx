@@ -13,92 +13,110 @@ export default function Navbar() {
   };
 
   return (
-    <nav className="bg-gradient-to-r from-green-600 to-green-700 shadow-lg">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
-          {/* Logo */}
-          <Link to="/" className="flex items-center space-x-2">
-            <div className="text-white text-2xl font-bold">🛒 GroceryStore</div>
-          </Link>
+    <nav 
+      className="navbar navbar-expand-lg navbar-dark sticky-top"
+      style={{
+        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+        boxShadow: '0 2px 12px rgba(0, 0, 0, 0.1)',
+        padding: '1rem 0'
+      }}
+    >
+      <div className="container-fluid">
+        <Link className="navbar-brand" to="/">
+          <i className="bi bi-shop"></i>
+          <span>GroceryStore</span>
+        </Link>
+        
+        <button
+          className="navbar-toggler"
+          type="button"
+          data-bs-toggle="collapse"
+          data-bs-target="#navbarNav"
+        >
+          <span className="navbar-toggler-icon"></span>
+        </button>
 
-          {/* Navigation Links */}
-          <div className="hidden md:flex items-center space-x-6">
+        <div className="collapse navbar-collapse" id="navbarNav">
+          <ul className="navbar-nav ms-auto">
             {isAuthenticated && (
               <>
-                <Link to="/products" className="text-white hover:text-green-100 transition">
-                  Products
-                </Link>
-                <Link to="/wishlist" className="text-white hover:text-green-100 transition">
-                  Wishlist
-                </Link>
-                <Link to="/invoices" className="text-white hover:text-green-100 transition">
-                  Invoices
-                </Link>
+                <li className="nav-item">
+                  <Link className="nav-link" to="/products">
+                    Products
+                  </Link>
+                </li>
+                <li className="nav-item">
+                  <Link className="nav-link" to="/wishlist">
+                    Wishlist
+                  </Link>
+                </li>
+                <li className="nav-item">
+                  <Link className="nav-link" to="/invoices">
+                    Invoices
+                  </Link>
+                </li>
+                {user?.usertype === 'admin' && (
+                  <li className="nav-item">
+                    <Link className="nav-link text-warning" to="/admin">
+                      <i className="bi bi-speedometer2"></i> Admin
+                    </Link>
+                  </li>
+                )}
               </>
             )}
-          </div>
+          </ul>
 
-          {/* Cart and Auth */}
-          <div className="flex items-center space-x-4">
+          <div className="d-flex align-items-center ms-3 gap-3">
             {isAuthenticated && (
               <>
                 <Link
                   to="/cart"
-                  className="relative text-white hover:text-green-100 transition flex items-center space-x-1"
+                  className="nav-link position-relative"
+                  style={{ color: 'white' }}
                 >
-                  <span>🛒 Cart</span>
+                  <i className="bi bi-cart3" style={{ fontSize: '1.3rem' }}></i>
                   {cartItemCount > 0 && (
-                    <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                      {cartItemCount}
-                    </span>
+                    <span className="cart-badge">{cartItemCount}</span>
                   )}
                 </Link>
 
-                <div className="flex items-center space-x-3 border-l border-green-500 pl-4">
-                  <span className="text-white text-sm">Welcome, {user?.username}!</span>
+                <div className="vr" style={{ height: '2rem', color: 'rgba(255,255,255,0.3)' }}></div>
+
+                <div className="dropdown">
                   <button
-                    onClick={handleLogout}
-                    className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition duration-200"
+                    className="btn btn-sm btn-light dropdown-toggle"
+                    type="button"
+                    id="userDropdown"
+                    data-bs-toggle="dropdown"
                   >
-                    Logout
+                    <i className="bi bi-person-circle"></i> {user?.username}
                   </button>
+                  <ul className="dropdown-menu dropdown-menu-end">
+                    <li>
+                      <button
+                        className="dropdown-item"
+                        onClick={handleLogout}
+                      >
+                        <i className="bi bi-box-arrow-right"></i> Logout
+                      </button>
+                    </li>
+                  </ul>
                 </div>
               </>
             )}
 
             {!isAuthenticated && (
-              <div className="flex items-center space-x-3">
-                <Link
-                  to="/login"
-                  className="bg-white text-green-600 hover:bg-green-50 px-4 py-2 rounded-lg font-medium transition"
-                >
+              <div className="d-flex gap-2">
+                <Link to="/login" className="btn btn-light btn-sm">
                   Login
                 </Link>
-                <Link
-                  to="/register"
-                  className="bg-green-500 hover:bg-green-400 text-white px-4 py-2 rounded-lg font-medium transition"
-                >
+                <Link to="/register" className="btn btn-secondary btn-sm">
                   Register
                 </Link>
               </div>
             )}
           </div>
         </div>
-
-        {/* Mobile Menu */}
-        {isAuthenticated && (
-          <div className="md:hidden pb-4 flex flex-wrap gap-3">
-            <Link to="/products" className="text-white hover:text-green-100 text-sm">
-              Products
-            </Link>
-            <Link to="/wishlist" className="text-white hover:text-green-100 text-sm">
-              Wishlist
-            </Link>
-            <Link to="/invoices" className="text-white hover:text-green-100 text-sm">
-              Invoices
-            </Link>
-          </div>
-        )}
       </div>
     </nav>
   );

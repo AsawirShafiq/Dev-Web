@@ -12,7 +12,7 @@ export default function ProductCard({ product }) {
     try {
       await addToCart(user.id, product, 1);
       alert('Added to cart!');
-    } catch {
+    } catch (error) {
       alert('Failed to add to cart');
     }
   };
@@ -25,76 +25,111 @@ export default function ProductCard({ product }) {
       } else {
         await addToWishlist(user.id, product.id);
       }
-    } catch {
+    } catch (error) {
       alert('Failed to update wishlist');
     }
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300 overflow-hidden flex flex-col h-full">
+    <div className="card product-card h-100">
       {/* Image Container */}
-      <div className="bg-gray-200 h-48 flex items-center justify-center overflow-hidden">
+      <div style={{ position: 'relative', overflow: 'hidden', height: '200px', backgroundColor: '#f3f4f6' }}>
         {product.image_url ? (
           <img
             src={product.image_url}
             alt={product.name}
-            className="w-full h-full object-cover hover:scale-105 transition-transform"
+            className="card-img-top"
+            style={{ height: '100%', objectFit: 'cover' }}
           />
         ) : (
-          <div className="text-4xl">📦</div>
+          <div style={{
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '3rem'
+          }}>
+            📦
+          </div>
         )}
+        <button
+          onClick={handleWishlistToggle}
+          className="wishlist-btn"
+          style={{
+            position: 'absolute',
+            top: '0.75rem',
+            right: '0.75rem',
+            backgroundColor: 'white',
+            borderRadius: '50%',
+            width: '40px',
+            height: '40px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >
+          {inWishlist ? '❤️' : '🤍'}
+        </button>
       </div>
 
       {/* Content */}
-      <div className="p-4 flex flex-col flex-grow">
-        <h3 className="text-lg font-semibold text-gray-800 mb-1 line-clamp-2">{product.name}</h3>
+      <div className="card-body d-flex flex-column">
+        <h5 className="card-title" style={{ fontSize: '1rem', fontWeight: 600 }}>
+          {product.name}
+        </h5>
 
         {product.brand && (
-          <p className="text-sm text-gray-500 mb-2">Brand: {product.brand}</p>
+          <p className="card-text" style={{ fontSize: '0.875rem', color: '#6b7280' }}>
+            Brand: {product.brand}
+          </p>
         )}
 
         {product.description && (
-          <p className="text-sm text-gray-600 mb-3 line-clamp-2">{product.description}</p>
+          <p className="card-text" style={{
+            fontSize: '0.875rem',
+            color: '#6b7280',
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden'
+          }}>
+            {product.description}
+          </p>
         )}
 
         {product.category && (
-          <p className="text-xs bg-green-100 text-green-800 inline-block px-2 py-1 rounded mb-3 w-fit">
+          <span className="product-category">
             {product.category}
-          </p>
+          </span>
         )}
 
         {/* Stock Status */}
         <div className="mb-3">
           {product.stock > 0 ? (
-            <p className="text-sm text-green-600 font-medium">In Stock: {product.stock}</p>
+            <small style={{ color: '#10b981', fontWeight: 500 }}>
+              ✓ In Stock: {product.stock}
+            </small>
           ) : (
-            <p className="text-sm text-red-600 font-medium">Out of Stock</p>
+            <small style={{ color: '#ef4444', fontWeight: 500 }}>
+              Out of Stock
+            </small>
           )}
         </div>
 
         {/* Price */}
-        <div className="mb-4 flex items-baseline space-x-2">
-          <span className="text-2xl font-bold text-green-600">${product.price.toFixed(2)}</span>
+        <div className="mb-3">
+          <span className="product-price">${product.price.toFixed(2)}</span>
         </div>
 
         {/* Buttons */}
-        <div className="flex gap-2 mt-auto">
+        <div className="d-flex gap-2 mt-auto">
           <button
             onClick={handleAddToCart}
             disabled={product.stock === 0}
-            className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded-lg transition duration-200"
+            className="btn btn-primary flex-grow-1"
+            style={{ fontSize: '0.9rem' }}
           >
-            Add to Cart
-          </button>
-          <button
-            onClick={handleWishlistToggle}
-            className={`px-4 py-2 rounded-lg font-semibold transition duration-200 ${
-              inWishlist
-                ? 'bg-red-500 hover:bg-red-600 text-white'
-                : 'bg-gray-200 hover:bg-gray-300 text-gray-800'
-            }`}
-          >
-            {inWishlist ? '❤️' : '🤍'}
+            <i className="bi bi-cart-plus"></i> Add to Cart
           </button>
         </div>
       </div>

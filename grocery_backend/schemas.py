@@ -106,3 +106,7 @@ class CartItemCreate(CartItemBase):
 class CartItemResponse(CartItemBase):
     id: str
     user_id: str
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str

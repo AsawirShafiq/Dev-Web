@@ -45,91 +45,91 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 flex items-center justify-center px-4 py-12">
-      <div className="w-full max-w-md bg-white rounded-xl shadow-xl p-8">
-        <h1 className="text-3xl font-bold text-center text-gray-800 mb-2">Create Account</h1>
-        <p className="text-center text-gray-600 mb-8">Join our grocery store today</p>
+    <div className="auth-container">
+      <div className="auth-card">
+        <h1>Create Account</h1>
+        <p>Join our grocery store today</p>
 
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
-            {error}
+          <div className="error-alert">
+            <i className="bi bi-exclamation-triangle"></i> {error}
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label className="form-label">Full Name</label>
             <input
               type="text"
               name="name"
               value={formData.name}
               onChange={handleChange}
               placeholder="John Doe"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none"
+              className="form-control"
               required
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
+          <div className="form-group">
+            <label className="form-label">Username</label>
             <input
               type="text"
               name="username"
               value={formData.username}
               onChange={handleChange}
               placeholder="johndoe"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none"
+              className="form-control"
               required
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+          <div className="form-group">
+            <label className="form-label">Email</label>
             <input
               type="email"
               name="email"
               value={formData.email}
               onChange={handleChange}
               placeholder="john@example.com"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none"
+              className="form-control"
               required
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+          <div className="form-group">
+            <label className="form-label">Phone (Optional)</label>
             <input
               type="tel"
               name="phone"
               value={formData.phone}
               onChange={handleChange}
               placeholder="123-456-7890"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none"
+              className="form-control"
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+          <div className="form-group">
+            <label className="form-label">Password</label>
             <input
               type="password"
               name="password"
               value={formData.password}
               onChange={handleChange}
               placeholder="Enter password"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none"
+              className="form-control"
               required
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
+          <div className="form-group">
+            <label className="form-label">Confirm Password</label>
             <input
               type="password"
               name="confirmPassword"
               value={formData.confirmPassword}
               onChange={handleChange}
               placeholder="Confirm password"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 outline-none"
+              className="form-control"
               required
             />
           </div>
@@ -137,17 +137,14 @@ export default function Register() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 disabled:opacity-50 text-white font-semibold py-3 rounded-lg transition mt-6"
+            className="btn btn-primary w-100 mt-3"
           >
-            {loading ? 'Creating Account...' : 'Create Account'}
+            {loading ? <span><span className="spinner-border spinner-border-sm me-2"></span>Creating Account...</span> : 'Create Account'}
           </button>
         </form>
 
-        <p className="text-center text-gray-600 mt-6">
-          Already have an account?{' '}
-          <Link to="/login" className="text-green-600 hover:text-green-700 font-semibold">
-            Sign in here
-          </Link>
+        <p className="text-center mt-3">
+          Already have an account? <Link to="/login" className="text-decoration-none" style={{ color: '#10b981' }}>Sign in here</Link>
         </p>
       </div>
     </div>

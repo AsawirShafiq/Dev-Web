@@ -4,7 +4,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-MONGO_URI = os.getenv("MONGO_URI")
+# Support both MONGO_URI and MONGODB_URL environment variables
+MONGO_URI = os.getenv("MONGODB_URL") or os.getenv("MONGO_URI") or "mongodb://localhost:27017/grocery"
 client = MongoClient(MONGO_URI)
 db = client.grocery
 users_collection = db.users

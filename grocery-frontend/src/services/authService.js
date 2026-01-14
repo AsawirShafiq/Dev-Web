@@ -2,12 +2,7 @@ import api from './api';
 
 export const authService = {
   register: (userData) => api.post('/users', userData),
-  login: (username, password) => {
-    const formData = new FormData();
-    formData.append('username', username);
-    formData.append('password', password);
-    return api.post('/token', formData);
-  },
+  login: (email, password) => api.post('/token', { email, password }),
   getCurrentUser: () => api.get('/users'),
   updateUser: (userId, userData) => api.put(`/users/${userId}`, userData),
   deleteUser: (userId) => api.delete(`/users/${userId}`),
@@ -34,6 +29,7 @@ export const wishlistService = {
 };
 
 export const invoiceService = {
+  getInvoices: () => api.get('/invoices'),
   getAllInvoices: () => api.get('/invoices'),
   getInvoice: (invoiceId) => api.get(`/invoices/${invoiceId}`),
   createInvoice: (invoiceData) => api.post('/invoices', invoiceData),

@@ -53,90 +53,83 @@ export default function Wishlist() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="d-flex align-items-center justify-content-center" style={{ minHeight: '60vh' }}>
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading wishlist...</p>
+          <div className="spinner-border mb-3" role="status"></div>
+          <p className="text-muted">Loading wishlist...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <h1 className="text-4xl font-bold text-gray-900 mb-8">My Wishlist</h1>
+    <div style={{ minHeight: '100vh', paddingTop: '2rem', paddingBottom: '2rem' }}>
+      <div className="container-lg">
+        <h1 className="mb-4"><i className="bi bi-heart"></i> My Wishlist</h1>
 
         {wishlistItems.length === 0 ? (
-          <div className="bg-white rounded-lg shadow p-8 text-center">
-            <div className="text-5xl mb-4">🤍</div>
-            <h2 className="text-2xl font-semibold text-gray-800 mb-2">Your wishlist is empty</h2>
-            <p className="text-gray-600 mb-6">Add items to your wishlist to save them for later</p>
-            <button
-              onClick={() => navigate('/products')}
-              className="bg-green-600 hover:bg-green-700 text-white font-semibold px-6 py-3 rounded-lg transition"
-            >
+          <div className="empty-state">
+            <div className="empty-state-icon">🤍</div>
+            <h2>Your wishlist is empty</h2>
+            <p>Add items to your wishlist to save them for later</p>
+            <button onClick={() => navigate('/products')} className="btn btn-primary">
               Continue Shopping
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="row g-4">
             {wishlistItems.map((item) => {
               const product = products[item.product_id];
               return (
-                <div key={item.id} className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition">
-                  {/* Image */}
-                  <div className="bg-gray-200 h-48 flex items-center justify-center">
-                    {product?.image_url ? (
-                      <img
-                        src={product.image_url}
-                        alt={product?.name}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <span className="text-4xl">📦</span>
-                    )}
-                  </div>
-
-                  {/* Content */}
-                  <div className="p-4">
-                    <h3 className="text-lg font-semibold text-gray-800 mb-1 line-clamp-2">
-                      {product?.name || 'Loading...'}
-                    </h3>
-
-                    {product?.brand && (
-                      <p className="text-sm text-gray-500 mb-2">Brand: {product.brand}</p>
-                    )}
-
-                    {product?.description && (
-                      <p className="text-sm text-gray-600 mb-3 line-clamp-2">{product.description}</p>
-                    )}
-
-                    <div className="mb-4 flex items-center justify-between">
-                      <span className="text-2xl font-bold text-green-600">
-                        ${product?.price.toFixed(2) || '0.00'}
-                      </span>
-                      {product && product.stock > 0 ? (
-                        <span className="text-sm text-green-600 font-medium">In Stock</span>
+                <div key={item.id} className="col-sm-6 col-lg-4 col-xl-3">
+                  <div className="card product-card h-100">
+                    <div style={{ position: 'relative', overflow: 'hidden', height: '200px', backgroundColor: '#f3f4f6' }}>
+                      {product?.image_url ? (
+                        <img src={product.image_url} alt={product?.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       ) : (
-                        <span className="text-sm text-red-600 font-medium">Out of Stock</span>
+                        <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '3rem' }}>📦</div>
                       )}
                     </div>
 
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleAddToCart(item.product_id)}
-                        disabled={product && product.stock === 0}
-                        className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded-lg transition"
-                      >
-                        Add to Cart
-                      </button>
-                      <button
-                        onClick={() => handleRemove(item.product_id)}
-                        className="bg-red-100 hover:bg-red-200 text-red-600 font-semibold py-2 px-4 rounded-lg transition"
-                      >
-                        Remove
-                      </button>
+                    <div className="card-body d-flex flex-column">
+                      <h5 className="card-title">{product?.name || 'Loading...'}</h5>
+                      {product?.brand && <p className="card-text text-muted" style={{ fontSize: '0.875rem' }}>Brand: {product.brand}</p>}
+                      {product?.description && (
+                        <p className="card-text text-muted" style={{
+                          fontSize: '0.875rem',
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden'
+                        }}>
+                          {product.description}
+                        </p>
+                      )}
+
+                      <div className="mb-3">
+                        <span className="product-price">${product?.price.toFixed(2) || '0.00'}</span>
+                        {product && product.stock > 0 ? (
+                          <small className="ms-2" style={{ color: '#10b981', fontWeight: 500 }}>✓ In Stock</small>
+                        ) : (
+                          <small className="ms-2" style={{ color: '#ef4444', fontWeight: 500 }}>Out of Stock</small>
+                        )}
+                      </div>
+
+                      <div className="d-flex gap-2 mt-auto">
+                        <button
+                          onClick={() => handleAddToCart(item.product_id)}
+                          disabled={product && product.stock === 0}
+                          className="btn btn-primary flex-grow-1 btn-sm"
+                        >
+                          Add to Cart
+                        </button>
+                        <button
+                          onClick={() => handleRemove(item.product_id)}
+                          className="btn btn-outline-danger btn-sm"
+                        >
+                          Remove
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>

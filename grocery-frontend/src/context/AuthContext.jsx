@@ -27,17 +27,16 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   }, []);
 
-  const login = async (username, password) => {
+  const login = async (email, password) => {
     try {
       setError(null);
-      const response = await authService.login(username, password);
-      const { access_token } = response.data;
+      const response = await authService.login(email, password);
+      const { access_token, user } = response.data;
       setToken(access_token);
 
-      // Decode token to get user info (basic username from JWT)
-      const userData = { username };
-      setUser(userData);
-      setUserState(userData);
+      // Store user data from response
+      setUser(user);
+      setUserState(user);
 
       return response.data;
     } catch (err) {

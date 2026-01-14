@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, Depends
-from schemas import UserCreate, UserResponse, UserUpdate, ProductCreate, ProductResponse, InvoiceCreate, InvoiceResponse, WishlistItemCreate, WishlistItemResponse, CartItemCreate, CartItemResponse
+from schemas import UserCreate, UserResponse, UserUpdate, ProductCreate, ProductResponse, InvoiceCreate, InvoiceResponse, WishlistItemCreate, WishlistItemResponse, CartItemCreate, CartItemResponse, LoginRequest
 from auth import hash_password, verify_password, create_access_token
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordBearer
 from bson import ObjectId
 from models import users_collection, invoices_collection, products_collection, wishlist_collection, cart_collection
 from fastapi.encoders import jsonable_encoder
@@ -31,10 +31,10 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 def get_current_user(token: str = Depends(oauth2_scheme)):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username: str = payload.get("sub")
-        if username is None:
+        email: str = payload.get("sub")
+        if email is None:
             raise HTTPException(status_code=401, detail="Invalid authentication")
-        return username
+        return email
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
@@ -106,14 +106,14 @@ def calculate_total_amount(products: list) -> float:
 # AUTH ROUTE
 # ===============================
 @app.post("/token")
-def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    print("Login attempt for user:", form_data.username)
-    user = users_collection.find_one({"username": form_data.username})
+def login(login_data: LoginRequest):
+    print("Login attempt for user:", login_data.email)
+    user = users_collection.find_one({"email": login_data.email})
     print(user)
-    if not user or not verify_password(form_data.password, user["password"]):
+    if not user or not verify_password(login_data.password, user["password"]):
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    token = create_access_token({"sub": user["username"]})
-    return {"access_token": token, "token_type": "bearer"}
+    token = create_access_token({"sub": user["email"]})
+    return {"access_token": token, "token_type": "bearer", "user": user_helper(user)}
 
 
 # ===============================
@@ -229,8 +229,8 @@ def create_invoice(invoice: InvoiceCreate, current_user: str = Depends(get_curre
             raise HTTPException(status_code=404, detail=f"Product {item.product_id} not found")
         populated_products.append({
             "product_id": item.product_id,
+            "product_name": product["name"],
             "price": product["price"],
-            "description": product["description"],
             "quantity": item.quantity
         })
     total_amount = calculate_total_amount(populated_products)
@@ -248,7 +248,12 @@ def create_invoice(invoice: InvoiceCreate, current_user: str = Depends(get_curre
 
 @app.get("/invoices", response_model=list[InvoiceResponse])
 def get_invoices(current_user: str = Depends(get_current_user)):
-    invoices = invoices_collection.find()
+    # Get user to find their ID
+    user = users_collection.find_one({"email": current_user})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    user_id = str(user["_id"])
+    invoices = invoices_collection.find({"user_id": user_id})
     return [invoice_helper(i) for i in invoices]
 
 
