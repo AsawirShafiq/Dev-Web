@@ -39,6 +39,23 @@ export default function Invoices() {
     }
   };
 
+  const handleDownloadPDF = async (invoiceId) => {
+    try {
+      const response = await invoiceService.downloadInvoicePDF(invoiceId);
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `invoice_${invoiceId.slice(-8).toUpperCase()}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Failed to download PDF:', error);
+      alert('Failed to download invoice PDF');
+    }
+  };
+
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -152,8 +169,15 @@ export default function Invoices() {
                     {/* Actions */}
                     <div className="d-flex gap-2">
                       <button
+                        onClick={() => handleDownloadPDF(invoice.id)}
+                        className="btn btn-success flex-grow-1 btn-sm"
+                      >
+                        <i className="bi bi-download me-1"></i>
+                        Download PDF
+                      </button>
+                      <button
                         onClick={() => navigate('/products')}
-                        className="btn btn-primary flex-grow-1 btn-sm"
+                        className="btn btn-primary btn-sm"
                       >
                         Continue Shopping
                       </button>
@@ -161,7 +185,7 @@ export default function Invoices() {
                         onClick={() => handleDelete(invoice.id)}
                         className="btn btn-outline-danger btn-sm"
                       >
-                        Delete Invoice
+                        <i className="bi bi-trash"></i>
                       </button>
                     </div>
                   </div>

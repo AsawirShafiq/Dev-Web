@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException, Depends
+from fastapi.responses import StreamingResponse
 from schemas import UserCreate, UserResponse, UserUpdate, ProductCreate, ProductResponse, InvoiceCreate, InvoiceResponse, WishlistItemCreate, WishlistItemResponse, CartItemCreate, CartItemResponse, LoginRequest
 from auth import hash_password, verify_password, create_access_token
 from fastapi.security import OAuth2PasswordBearer
@@ -14,6 +15,13 @@ from fastapi.openapi.models import OAuthFlows as OAuthFlowsModel
 from fastapi.security import OAuth2
 from fastapi.middleware.cors import CORSMiddleware
 import requests
+from reportlab.lib.pagesizes import letter
+from reportlab.lib import colors
+from reportlab.lib.units import inch
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.enums import TA_CENTER, TA_RIGHT
+import io
 
 app = FastAPI()
 
@@ -279,6 +287,157 @@ def delete_invoice(invoice_id: str, current_user: str = Depends(get_current_user
     if deleted.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Invoice not found")
     return {"message": "Invoice deleted successfully"}
+
+
+@app.get("/invoices/{invoice_id}/pdf")
+def generate_invoice_pdf(invoice_id: str, current_user: str = Depends(get_current_user)):
+    """Generate a PDF for a specific invoice"""
+    # Fetch invoice
+    invoice = invoices_collection.find_one({"_id": ObjectId(invoice_id)})
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    
+    # Fetch user details
+    user = users_collection.find_one({"_id": ObjectId(invoice["user_id"])})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Create PDF in memory
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=72, leftMargin=72, topMargin=72, bottomMargin=18)
+    
+    # Container for the 'Flowable' objects
+    elements = []
+    
+    # Define styles
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=24,
+        textColor=colors.HexColor('#10b981'),
+        spaceAfter=30,
+        alignment=TA_CENTER
+    )
+    
+    heading_style = ParagraphStyle(
+        'CustomHeading',
+        parent=styles['Heading2'],
+        fontSize=14,
+        textColor=colors.HexColor('#374151'),
+        spaceAfter=12,
+    )
+    
+    # Add title
+    title = Paragraph("INVOICE", title_style)
+    elements.append(title)
+    elements.append(Spacer(1, 12))
+    
+    # Invoice Info
+    invoice_info = [
+        ['Invoice ID:', invoice_id[-8:].upper()],
+        ['Date:', datetime.fromisoformat(invoice["created_at"]).strftime('%B %d, %Y %I:%M %p')],
+        ['Customer:', user.get('name', 'N/A')],
+        ['Email:', user.get('email', 'N/A')],
+    ]
+    
+    info_table = Table(invoice_info, colWidths=[2*inch, 4*inch])
+    info_table.setStyle(TableStyle([
+        ('ALIGN', (0, 0), (0, -1), 'RIGHT'),
+        ('ALIGN', (1, 0), (1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+    ]))
+    
+    elements.append(info_table)
+    elements.append(Spacer(1, 20))
+    
+    # Add items header
+    items_heading = Paragraph("Order Items", heading_style)
+    elements.append(items_heading)
+    elements.append(Spacer(1, 12))
+    
+    # Items table
+    items_data = [['#', 'Product Name', 'Quantity', 'Price', 'Subtotal']]
+    
+    for idx, item in enumerate(invoice["products"], 1):
+        product_name = item.get("product_name", "Unknown Product")
+        quantity = item.get("quantity", 0)
+        price = item.get("price", 0.0)
+        subtotal = quantity * price
+        
+        items_data.append([
+            str(idx),
+            product_name,
+            str(quantity),
+            f"€{price:.2f}",
+            f"€{subtotal:.2f}"
+        ])
+    
+    # Add totals
+    subtotal = invoice["total_amount"] * 0.9
+    tax = invoice["total_amount"] * 0.1
+    
+    items_data.append(['', '', '', 'Subtotal:', f"€{subtotal:.2f}"])
+    items_data.append(['', '', '', 'Tax (10%):', f"€{tax:.2f}"])
+    items_data.append(['', '', '', 'Total:', f"€{invoice['total_amount']:.2f}"])
+    
+    items_table = Table(items_data, colWidths=[0.5*inch, 3*inch, 1*inch, 1*inch, 1.2*inch])
+    items_table.setStyle(TableStyle([
+        # Header row
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#10b981')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 11),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        
+        # Data rows
+        ('FONTNAME', (0, 1), (-1, -4), 'Helvetica'),
+        ('FONTSIZE', (0, 1), (-1, -4), 10),
+        ('ALIGN', (0, 1), (0, -1), 'CENTER'),
+        ('ALIGN', (2, 1), (-1, -1), 'RIGHT'),
+        ('GRID', (0, 0), (-1, -4), 1, colors.grey),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -4), [colors.white, colors.HexColor('#f9fafb')]),
+        
+        # Summary rows
+        ('FONTNAME', (3, -3), (-1, -1), 'Helvetica-Bold'),
+        ('ALIGN', (3, -3), (-1, -1), 'RIGHT'),
+        ('LINEABOVE', (3, -3), (-1, -3), 1, colors.grey),
+        ('LINEABOVE', (3, -1), (-1, -1), 2, colors.black),
+        ('BACKGROUND', (3, -1), (-1, -1), colors.HexColor('#f3f4f6')),
+        ('FONTSIZE', (3, -1), (-1, -1), 12),
+    ]))
+    
+    elements.append(items_table)
+    elements.append(Spacer(1, 30))
+    
+    # Footer
+    footer_style = ParagraphStyle(
+        'Footer',
+        parent=styles['Normal'],
+        fontSize=9,
+        textColor=colors.grey,
+        alignment=TA_CENTER
+    )
+    footer = Paragraph("Thank you for your purchase! | GroceryStore", footer_style)
+    elements.append(footer)
+    
+    # Build PDF
+    doc.build(elements)
+    
+    # Get PDF data
+    buffer.seek(0)
+    
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f"attachment; filename=invoice_{invoice_id[-8:].upper()}.pdf"
+        }
+    )
 
 
 # ===============================

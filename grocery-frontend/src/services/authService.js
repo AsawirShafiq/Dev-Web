@@ -34,6 +34,11 @@ export const invoiceService = {
   getInvoice: (invoiceId) => api.get(`/invoices/${invoiceId}`),
   createInvoice: (invoiceData) => api.post('/invoices', invoiceData),
   deleteInvoice: (invoiceId) => api.delete(`/invoices/${invoiceId}`),
+  downloadInvoicePDF: (invoiceId) => {
+    return api.get(`/invoices/${invoiceId}/pdf`, {
+      responseType: 'blob'
+    });
+  }
 };
 
 export const kpiService = {
