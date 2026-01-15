@@ -70,6 +70,8 @@ class ProductResponse(ProductBase):
 class InvoiceProduct(BaseModel):
     product_id: str
     quantity: int
+    product_name: Optional[str] = None
+    price: Optional[float] = None
 
 class InvoiceCreate(BaseModel):
     user_id: str

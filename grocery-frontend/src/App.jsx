@@ -4,6 +4,7 @@ import { CartProvider } from './context/CartContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
 import Navbar from './components/Navbar';
+import ChatPopup from './components/ChatPopup';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Products from './pages/Products';
@@ -151,6 +152,9 @@ export default function App() {
             {/* Catch All */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+
+          {/* Global Chat Popup - Available on all pages */}
+          <ChatPopup />
         </CartProvider>
       </AuthProvider>
     </Router>
