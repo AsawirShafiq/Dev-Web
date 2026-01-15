@@ -3,14 +3,17 @@ from schemas import UserCreate, UserResponse, UserUpdate, ProductCreate, Product
 from auth import hash_password, verify_password, create_access_token
 from fastapi.security import OAuth2PasswordBearer
 from bson import ObjectId
-from models import users_collection, invoices_collection, products_collection, wishlist_collection, cart_collection
+from models import users_collection, invoices_collection, products_collection, wishlist_collection, cart_collection, api_sync_collection
 from fastapi.encoders import jsonable_encoder
 from datetime import datetime
 from jose import JWTError, jwt
 import os
+import time
+import random
 from fastapi.openapi.models import OAuthFlows as OAuthFlowsModel
 from fastapi.security import OAuth2
 from fastapi.middleware.cors import CORSMiddleware
+import requests
 
 app = FastAPI()
 
@@ -23,7 +26,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# JWT Auth setup
+# JWT Auth setup    
 SECRET_KEY = os.getenv("SECRET_KEY", "your_secret_key_here")  # fallback key
 ALGORITHM = "HS256"
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
@@ -55,6 +58,8 @@ def user_helper(user) -> dict:
 
 
 def product_helper(product) -> dict:
+    images = product.get("images", [])
+    image_url = images[0] if images and len(images) > 0 else None
     return {
         "id": str(product["_id"]),
         "name": product["name"],
@@ -63,7 +68,9 @@ def product_helper(product) -> dict:
         "price": product["price"],
         "category": product.get("category"),
         "stock": product.get("stock"),
-        "image_url": product.get("image_url")
+        "image_url": image_url,
+        "barcode": product.get("barcode"),
+        "source": product.get("source", "manual")
     }
 
 def invoice_helper(invoice) -> dict:
@@ -186,13 +193,13 @@ def create_product(product: ProductCreate, current_user: str = Depends(get_curre
 
 
 @app.get("/products", response_model=list[ProductResponse])
-def get_all_products(current_user: str = Depends(get_current_user)):
+def get_all_products():
     products = products_collection.find()
     return [product_helper(p) for p in products]
 
 
 @app.get("/products/{product_id}", response_model=ProductResponse)
-def get_product(product_id: str, current_user: str = Depends(get_current_user)):
+def get_product(product_id: str):
     product = products_collection.find_one({"_id": ObjectId(product_id)})
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
@@ -335,6 +342,189 @@ def delete_cart_item(user_id: str, product_id: str, current_user: str = Depends(
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Item not found in cart")
     return {"message": "Item removed from cart"}
+
+
+# ===============================
+# OPENFOODFACTS API INTEGRATION
+# ===============================
+@app.post("/products/sync-openfoodfacts")
+def sync_openfoodfacts_products():
+    """
+    Syncs 200 products from Open Food Facts API to MongoDB with pagination.
+    Fetches 2 pages of 100 products each.
+    """
+    try:
+        # Check if sync is already in progress
+        sync_status = api_sync_collection.find_one({"source": "openfoodfacts"})
+        if sync_status and sync_status.get("status") == "in_progress":
+            raise HTTPException(status_code=400, detail="Sync already in progress")
+        
+        # Mark sync as in progress
+        api_sync_collection.update_one(
+            {"source": "openfoodfacts"},
+            {"$set": {"status": "in_progress", "started_at": datetime.utcnow().isoformat()}},
+            upsert=True
+        )
+        
+        base_url = "https://world.openfoodfacts.net/api/v2/search"
+        headers = {"User-Agent": "MyGroceryApp/1.0 (contact@example.com)"}
+        products_added = 0
+        total_products = 0
+        errors = []
+        
+        # Fetch 2 pages (100 products each = 200 total)
+        for page in range(1, 3):
+            max_retries = 3
+            retry_count = 0
+            success = False
+            data = None
+            
+            while retry_count < max_retries and not success:
+                try:
+                    params = {
+                        "fields": "code,product_name,brands,categories,image_front_url,energy-kcal_100g",
+                        "page": page,
+                        "page_size": 100
+                    }
+                    
+                    print(f"Fetching page {page} (attempt {retry_count + 1}/{max_retries})...")
+                    response = requests.get(base_url, params=params, headers=headers, timeout=15)
+                    response.raise_for_status()
+                    data = response.json()
+                    success = True
+                    print(f"Successfully fetched page {page}")
+                    
+                except requests.exceptions.Timeout:
+                    retry_count += 1
+                    error_msg = f"Page {page} - Timeout (attempt {retry_count}/{max_retries})"
+                    print(error_msg)
+                    errors.append(error_msg)
+                    if retry_count < max_retries:
+                        import time
+                        time.sleep(2)  # Wait 2 seconds before retry
+                    continue
+                    
+                except requests.exceptions.RequestException as e:
+                    retry_count += 1
+                    error_msg = f"Page {page} - {str(e)} (attempt {retry_count}/{max_retries})"
+                    print(error_msg)
+                    errors.append(error_msg)
+                    if retry_count < max_retries:
+                        import time
+                        time.sleep(2)  # Wait 2 seconds before retry
+                    continue
+            
+            # If fetch was unsuccessful after retries, skip this page
+            if not success or data is None:
+                continue
+            
+            products_list = data.get("products", [])
+            
+            for product_data in products_list:
+                # Skip products without a name
+                if not product_data.get("product_name"):
+                    continue
+                
+                barcode = product_data.get("code", "")
+                
+                # Check if product already exists
+                existing = products_collection.find_one({"barcode": barcode})
+                if existing:
+                    continue
+                
+                # Transform the data to match our schema
+                product_to_insert = {
+                    "name": product_data.get("product_name", "Unknown Product"),
+                    "brand": product_data.get("brands", ""),
+                    "description": product_data.get("categories", ""),
+                    "price": round(random.uniform(1, 10), 2),  # Random price between 1-10 euros
+                    "category": product_data.get("categories", "").split(",")[0] if product_data.get("categories") else "",
+                    "stock": random.randint(75, 100),  # Random stock between 75-100
+                    "barcode": barcode,
+                    "source": "openfoodfacts",
+                    "images": [product_data.get("image_front_url")] if product_data.get("image_front_url") else [],
+                    "rating": 0.0,
+                    "tags": [],
+                    "created_at": datetime.utcnow().isoformat()
+                }
+                
+                # Insert the product
+                result = products_collection.insert_one(product_to_insert)
+                if result.inserted_id:
+                    products_added += 1
+                
+                total_products += 1
+        
+        # Mark sync as completed
+        api_sync_collection.update_one(
+            {"source": "openfoodfacts"},
+            {"$set": {
+                "status": "completed",
+                "completed_at": datetime.utcnow().isoformat(),
+                "products_added": products_added,
+                "total_products_processed": total_products,
+                "errors": errors if errors else None
+            }},
+            upsert=True
+        )
+        
+        return {
+            "message": "OpenFoodFacts sync completed",
+            "products_added": products_added,
+            "total_products_processed": total_products,
+            "pages_processed": 2,
+            "errors": errors if errors else None,
+            "status": "success" if products_added > 0 else "no_new_products"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        # Mark sync as failed
+        error_detail = str(e)
+        print(f"Sync failed with error: {error_detail}")
+        api_sync_collection.update_one(
+            {"source": "openfoodfacts"},
+            {"$set": {
+                "status": "failed",
+                "error": error_detail,
+                "failed_at": datetime.utcnow().isoformat()
+            }},
+            upsert=True
+        )
+        raise HTTPException(status_code=500, detail=f"Error syncing products: {error_detail}")
+
+
+@app.get("/products/sync-status")
+def get_sync_status():
+    """
+    Get the current sync status of OpenFoodFacts API.
+    """
+    sync_status = api_sync_collection.find_one({"source": "openfoodfacts"})
+    if not sync_status:
+        return {"status": "never_synced"}
+    
+    return {
+        "source": sync_status.get("source"),
+        "status": sync_status.get("status"),
+        "started_at": sync_status.get("started_at"),
+        "completed_at": sync_status.get("completed_at"),
+        "products_added": sync_status.get("products_added", 0),
+        "total_products_processed": sync_status.get("total_products_processed", 0),
+        "error": sync_status.get("error")
+    }
+
+
+@app.get("/products/by-barcode/{barcode}", response_model=ProductResponse)
+def get_product_by_barcode(barcode: str):
+    """
+    Get a product by its barcode (useful for products from OpenFoodFacts).
+    """
+    product = products_collection.find_one({"barcode": barcode})
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    return product_helper(product)
+
 
 @app.get("/kpi/total-users")
 def total_users_kpi(current_user: str = Depends(get_current_user)):

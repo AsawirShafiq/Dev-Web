@@ -1,14 +1,17 @@
 export const API_BASE_URL = 'http://127.0.0.1:8000';
 
 export const PRODUCT_CATEGORIES = [
-  'Electronics',
-  'Groceries',
-  'Home & Garden',
-  'Sports & Outdoors',
-  'Fashion',
-  'Books',
-  'Toys & Games',
-  'Health & Beauty',
+  'Beverages',
+  'Beverages and beverages preparations',
+  'Boissons',
+  'Boissons et préparations de boissons',
+  'Breakfasts',
+  'Condiments',
+  'Dairies',
+  'Plant-based foods and beverages',
+  'Petit-déjeuners',
+  'Produits laitiers',
+  'Snacks',
 ];
 
 export const SORT_OPTIONS = [
