@@ -2,10 +2,13 @@ import os
 import json
 import requests
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from pydantic import BaseModel
 from openai import OpenAI
+import tempfile
+from urllib.parse import quote
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_core.documents import Document
@@ -47,6 +50,11 @@ class ChatRequest(BaseModel):
     query: str
     user_id: str
     access_token: str
+
+class VoiceChatRequest(BaseModel):
+    user_id: str
+    access_token: str
+    voice: str = "alloy"  # Options: alloy, echo, fable, onyx, nova, shimmer
 
 # =========================
 # LOAD PRODUCTS FROM YOUR API
@@ -393,13 +401,13 @@ functions = [
     },
     {
         "name": "add_to_wishlist",
-        "description": "Add a product to the user's wishlist. Use when user wants to save or add a product to their wishlist.",
+        "description": "Add a product to the user's wishlist. IMPORTANT: Always search for the product first using search_products, then use the 'Product ID' field from search results (NOT the product name). The product_id is a long string like '6968bf21f537f86c52bfed93'.",
         "parameters": {
             "type": "object",
             "properties": {
                 "product_id": {
                     "type": "string",
-                    "description": "The ID of the product to add"
+                    "description": "The exact Product ID from search_products results. This is a MongoDB ObjectId (long alphanumeric string), NOT the product name."
                 }
             },
             "required": ["product_id"]
@@ -407,13 +415,13 @@ functions = [
     },
     {
         "name": "add_to_cart",
-        "description": "Add a product to the user's cart. Use when user wants to buy or add a product to their cart.",
+        "description": "Add a product to the user's cart. IMPORTANT: Always search for the product first using search_products, then use the 'Product ID' field from search results (NOT the product name). The product_id is a long string like '6968bf21f537f86c52bfed93'.",
         "parameters": {
             "type": "object",
             "properties": {
                 "product_id": {
                     "type": "string",
-                    "description": "The ID of the product to add"
+                    "description": "The exact Product ID from search_products results. This is a MongoDB ObjectId (long alphanumeric string), NOT the product name."
                 },
                 "quantity": {
                     "type": "integer",
@@ -508,12 +516,19 @@ def chat(request: ChatRequest):
                 - Remove items from wishlist or cart
                 - Purchase products (checkout)
                 
-                When users ask about products, use search_products to find relevant items.
-                When users want to save items, use add_to_wishlist.
-                When users want to buy items or add them to cart, use add_to_cart.
-                When users want to checkout, purchase, buy now, or complete their order, use buy_products.
+                IMPORTANT WORKFLOW for adding products to cart/wishlist:
+                1. When user asks about a product or wants to add it, ALWAYS use search_products first
+                2. Look at the search results and find the "Product ID" field
+                3. Use that exact Product ID (the long string starting with numbers/letters) to add to cart or wishlist
+                4. NEVER use the product name as the ID - always use the Product ID from search results
                 
-                Always be friendly and helpful. When you add items to wishlist or cart, confirm the action.
+                Example:
+                User: "Add Nutella to cart"
+                1. Call search_products with query="Nutella"
+                2. From results, extract the Product ID (e.g., "6968bf21f537f86c52bfed93")
+                3. Call add_to_cart with product_id="6968bf21f537f86c52bfed93"
+                
+                Always be friendly and helpful. Confirm actions clearly.
                 When processing purchases, provide a clear summary with invoice details."""
             },
             {
@@ -543,8 +558,12 @@ def chat(request: ChatRequest):
                 function_args["user_id"] = request.user_id
                 function_args["access_token"] = request.access_token
             
-            # Call the function
-            function_response = function_map[function_name](**function_args)
+            # Call the function with error handling
+            try:
+                function_response = function_map[function_name](**function_args)
+            except Exception as func_error:
+                # If function fails, provide error message to GPT so it can respond appropriately
+                function_response = f"Error executing function: {str(func_error)}"
             
             # Add function response to messages
             messages.append({
@@ -585,6 +604,244 @@ def reindex_products():
     global vector_store
     vector_store = build_vector_store()
     return {"status": "Product index rebuilt successfully"}
+
+# =========================
+# SPEECH TO TEXT ENDPOINT
+# =========================
+@app.post("/voice/transcribe")
+async def transcribe_audio(audio: UploadFile = File(...)):
+    """Transcribe audio file to text using OpenAI Whisper."""
+    temp_file_path = None
+    try:
+        # Save uploaded file temporarily
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as temp_file:
+            content = await audio.read()
+            temp_file.write(content)
+            temp_file_path = temp_file.name
+        
+        # Transcribe using Whisper
+        with open(temp_file_path, "rb") as audio_file:
+            transcript = client.audio.transcriptions.create(
+                model="whisper-1",
+                file=audio_file
+            )
+        
+        # Clean up temp file
+        os.remove(temp_file_path)
+        
+        return {
+            "text": transcript.text,
+            "status": "success"
+        }
+    except Exception as e:
+        # Clean up temp file if it exists
+        if temp_file_path and os.path.exists(temp_file_path):
+            try:
+                os.remove(temp_file_path)
+            except:
+                pass
+        raise HTTPException(status_code=500, detail=str(e))
+
+# =========================
+# TEXT TO SPEECH ENDPOINT
+# =========================
+@app.post("/voice/synthesize")
+def synthesize_speech(text: str, voice: str = "alloy"):
+    """Convert text to speech using OpenAI TTS.
+    Voice options: alloy, echo, fable, onyx, nova, shimmer
+    """
+    try:
+        response = client.audio.speech.create(
+            model="tts-1",
+            voice=voice,
+            input=text
+        )
+        
+        # Return audio as streaming response
+        return Response(
+            content=response.content,
+            media_type="audio/mpeg",
+            headers={
+                "Content-Disposition": "attachment; filename=speech.mp3"
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# =========================
+# COMBINED VOICE CHAT ENDPOINT
+# =========================
+@app.post("/voice/chat")
+async def voice_chat(
+    audio: UploadFile = File(...),
+    user_id: str = Form(None),
+    access_token: str = Form(None),
+    voice: str = Form("alloy")
+):
+    """Complete voice chat flow: transcribe audio -> process with function calling -> synthesize response.
+    
+    Args:
+        audio: Audio file (WebM, MP3, WAV, etc.)
+        user_id: User ID for authentication
+        access_token: JWT access token
+        voice: TTS voice (alloy, echo, fable, onyx, nova, shimmer)
+    
+    Returns:
+        Audio response with synthesized speech
+    """
+    temp_file_path = None
+    try:
+        # Step 1: Transcribe audio to text
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as temp_file:
+            content = await audio.read()
+            temp_file.write(content)
+            temp_file_path = temp_file.name
+        
+        with open(temp_file_path, "rb") as audio_file:
+            transcript = client.audio.transcriptions.create(
+                model="whisper-1",
+                file=audio_file
+            )
+        
+        os.remove(temp_file_path)
+        user_query = transcript.text
+        
+        print(f"[VOICE] Transcribed: {user_query}")
+        
+        # Step 2: Process with chatbot (including function calling)
+        messages = [
+            {
+                "role": "system",
+                "content": """You are a helpful e-commerce shopping assistant. You help users:
+                - Find products they're looking for
+                - Add products to their wishlist or cart
+                - View their wishlist and cart
+                - Remove items from wishlist or cart
+                - Purchase products (checkout)
+                
+                IMPORTANT WORKFLOW for adding products to cart/wishlist:
+                1. When user asks about a product or wants to add it, ALWAYS use search_products first
+                2. Look at the search results and find the "Product ID" field
+                3. Use that exact Product ID (the long string starting with numbers/letters) to add to cart or wishlist
+                4. NEVER use the product name as the ID - always use the Product ID from search results
+                
+                Example:
+                User: "Add Nutella to cart"
+                1. Call search_products with query="Nutella"
+                2. From results, extract the Product ID (e.g., "6968bf21f537f86c52bfed93")
+                3. Call add_to_cart with product_id="6968bf21f537f86c52bfed93"
+                
+                Always be friendly and helpful. Confirm actions clearly.
+                Keep responses concise and natural for voice conversation."""
+            },
+            {
+                "role": "user",
+                "content": user_query
+            }
+        ]
+        
+        # Initial API call
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages,
+            functions=functions,
+            function_call="auto"
+        )
+        
+        message = response.choices[0].message
+        
+        # Handle function calls
+        while message.function_call:
+            function_name = message.function_call.name
+            function_args = json.loads(message.function_call.arguments)
+            
+            print(f"[VOICE] Calling function: {function_name} with args: {function_args}")
+            
+            # Add user_id and access_token for functions that need them
+            if function_name in ["add_to_wishlist", "add_to_cart", "get_wishlist", 
+                                "get_cart", "remove_from_wishlist", "remove_from_cart", "buy_products"]:
+                function_args["user_id"] = user_id
+                function_args["access_token"] = access_token
+            
+            # Call the function with error handling
+            try:
+                function_response = function_map[function_name](**function_args)
+                print(f"[VOICE] Function response: {function_response[:200]}")  # Log first 200 chars
+                print(f"[VOICE] Function response length: {len(function_response)}")
+            except Exception as func_error:
+                # If function fails, provide error message to GPT so it can respond appropriately
+                function_response = f"Error executing function: {str(func_error)}"
+                print(f"[VOICE] Function error: {func_error}")
+                print(f"[VOICE] Function response length: {len(function_response)}")
+            
+            # Add function response to messages
+            messages.append({
+                "role": "assistant",
+                "content": None,
+                "function_call": {
+                    "name": function_name,
+                    "arguments": message.function_call.arguments
+                }
+            })
+            messages.append({
+                "role": "function",
+                "name": function_name,
+                "content": function_response
+            })
+            
+            # Get next response
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=messages,
+                functions=functions,
+                function_call="auto"
+            )
+            message = response.choices[0].message
+        
+        answer_text = message.content
+        
+        print(f"[VOICE] Final response length: {len(answer_text) if answer_text else 0}")
+        
+        # Step 3: Convert response to speech
+        # Limit text length for TTS (max 4096 characters)
+        if len(answer_text) > 4000:
+            answer_text = answer_text[:3997] + "..."
+        
+        print(f"[VOICE] Converting to speech...")
+        speech_response = client.audio.speech.create(
+            model="tts-1",
+            voice=voice,
+            input=answer_text
+        )
+        
+        print(f"[VOICE] Speech generated successfully")
+        
+        # URL encode the text to handle special characters like € in headers
+        encoded_query = quote(user_query, safe='')
+        encoded_answer = quote(answer_text, safe='')
+        
+        # Return audio response
+        return Response(
+            content=speech_response.content,
+            media_type="audio/mpeg",
+            headers={
+                "Content-Disposition": "attachment; filename=response.mp3",
+                "X-Transcribed-Text": encoded_query,  # URL-encoded transcribed text
+                "X-Response-Text": encoded_answer     # URL-encoded response text
+            }
+        )
+        
+    except Exception as e:
+        # Clean up temp file if it exists
+        if temp_file_path and os.path.exists(temp_file_path):
+            try:
+                os.remove(temp_file_path)
+            except:
+                pass
+        print(f"[VOICE] ERROR: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
 
 # =========================
 # HEALTH CHECK

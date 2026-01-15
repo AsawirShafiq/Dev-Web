@@ -12,6 +12,13 @@ export default function Chatbot() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const messagesEndRef = useRef(null);
+  
+  // Voice chat states
+  const [isRecording, setIsRecording] = useState(false);
+  const [mediaRecorder, setMediaRecorder] = useState(null);
+  const [audioChunks, setAudioChunks] = useState([]);
+  const [selectedVoice, setSelectedVoice] = useState('alloy');
+  const audioRef = useRef(null);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -89,6 +96,113 @@ export default function Chatbot() {
     setError(null);
   };
 
+  // Voice recording functions
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      const chunks = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          chunks.push(e.data);
+        }
+      };
+
+      recorder.onstop = async () => {
+        const audioBlob = new Blob(chunks, { type: 'audio/webm' });
+        await handleVoiceMessage(audioBlob);
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      recorder.start();
+      setMediaRecorder(recorder);
+      setIsRecording(true);
+      setAudioChunks(chunks);
+    } catch (err) {
+      console.error('Error accessing microphone:', err);
+      setError('Could not access microphone. Please grant permission.');
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorder && isRecording) {
+      mediaRecorder.stop();
+      setIsRecording(false);
+    }
+  };
+
+  const handleVoiceMessage = async (audioBlob) => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const token = getToken();
+      
+      // Add a user message placeholder
+      setMessages(prev => [...prev, { 
+        role: 'user', 
+        content: '🎤 Voice message...', 
+        isVoice: true 
+      }]);
+
+      // Send voice to backend (STT -> Process -> TTS)
+      const response = await chatbotService.voiceChat(
+        audioBlob, 
+        user.id, 
+        token, 
+        selectedVoice
+      );
+
+      // Get transcribed text and response text from headers (URL-encoded)
+      const encodedTranscript = response.headers['x-transcribed-text'] || '';
+      const encodedResponse = response.headers['x-response-text'] || '';
+      
+      // Decode URL-encoded strings
+      const transcribedText = encodedTranscript ? decodeURIComponent(encodedTranscript) : 'Voice message';
+      const responseText = encodedResponse ? decodeURIComponent(encodedResponse) : 'Response';
+
+      // Update user message with transcribed text
+      setMessages(prev => {
+        const newMessages = [...prev];
+        newMessages[newMessages.length - 1] = {
+          role: 'user',
+          content: `🎤 ${transcribedText}`,
+          isVoice: true
+        };
+        return newMessages;
+      });
+
+      // Add assistant response
+      setMessages(prev => [
+        ...prev,
+        { 
+          role: 'assistant', 
+          content: responseText,
+          hasAudio: true
+        }
+      ]);
+
+      // Play audio response
+      const audioUrl = URL.createObjectURL(response.data);
+      if (audioRef.current) {
+        audioRef.current.src = audioUrl;
+        audioRef.current.play();
+      }
+
+    } catch (err) {
+      console.error('Voice chat error:', err);
+      const errorMessage = err.response?.data?.detail || 'Failed to process voice message. Please try again.';
+      setError(errorMessage);
+      setMessages(prev => [
+        ...prev,
+        { role: 'assistant', content: `❌ ${errorMessage}` }
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div style={{ 
       minHeight: '100vh', 
@@ -153,6 +267,11 @@ export default function Chatbot() {
                     <div style={{ marginBottom: '0.5rem', opacity: 0.7, fontSize: '0.875rem' }}>
                       <i className="bi bi-robot me-1"></i>
                       Assistant
+                      {message.hasAudio && (
+                        <span className="ms-2" title="Audio response available">
+                          <i className="bi bi-volume-up-fill"></i>
+                        </span>
+                      )}
                     </div>
                   )}
                   {message.content}
@@ -196,6 +315,27 @@ export default function Chatbot() {
               </div>
             )}
 
+            {/* Voice selector */}
+            <div className="mb-2">
+              <label className="form-label small mb-1">
+                <i className="bi bi-megaphone me-1"></i>
+                Voice:
+              </label>
+              <select 
+                className="form-select form-select-sm" 
+                value={selectedVoice}
+                onChange={(e) => setSelectedVoice(e.target.value)}
+                style={{ maxWidth: '200px' }}
+              >
+                <option value="alloy">Alloy (Neutral)</option>
+                <option value="echo">Echo (Male)</option>
+                <option value="fable">Fable (British)</option>
+                <option value="onyx">Onyx (Deep)</option>
+                <option value="nova">Nova (Female)</option>
+                <option value="shimmer">Shimmer (Soft)</option>
+              </select>
+            </div>
+
             <div className="d-flex gap-2">
               <input
                 type="text"
@@ -204,16 +344,40 @@ export default function Chatbot() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyPress={handleKeyPress}
-                disabled={loading}
+                disabled={loading || isRecording}
                 style={{
                   border: '2px solid #e5e7eb',
                   borderRadius: '0.5rem',
                   padding: '0.75rem 1rem'
                 }}
               />
+              
+              {/* Voice button */}
+              <button
+                onClick={isRecording ? stopRecording : startRecording}
+                disabled={loading}
+                className={`btn ${isRecording ? 'btn-danger' : 'btn-primary'}`}
+                style={{
+                  minWidth: '50px',
+                  borderRadius: '0.5rem'
+                }}
+                title={isRecording ? 'Stop recording' : 'Start voice chat'}
+              >
+                {isRecording ? (
+                  <>
+                    <i className="bi bi-stop-circle-fill"></i>
+                  </>
+                ) : (
+                  <>
+                    <i className="bi bi-mic-fill"></i>
+                  </>
+                )}
+              </button>
+
+              {/* Send button */}
               <button
                 onClick={handleSend}
-                disabled={!input.trim() || loading}
+                disabled={!input.trim() || loading || isRecording}
                 className="btn btn-success"
                 style={{
                   minWidth: '100px',
@@ -233,6 +397,17 @@ export default function Chatbot() {
                 )}
               </button>
             </div>
+
+            {/* Recording indicator */}
+            {isRecording && (
+              <div className="mt-2 text-danger small">
+                <i className="bi bi-record-circle-fill me-1"></i>
+                Recording... Click stop when done
+              </div>
+            )}
+
+            {/* Hidden audio element for playback */}
+            <audio ref={audioRef} style={{ display: 'none' }} />
 
             {/* Quick Actions */}
             <div className="d-flex flex-wrap gap-2 mt-3">
@@ -272,7 +447,7 @@ export default function Chatbot() {
         <div className="mt-3 text-center text-muted">
           <small>
             <i className="bi bi-info-circle me-1"></i>
-            Tip: You can ask me to search products, manage your cart, or complete purchases!
+            Tip: You can type or use voice chat! Ask me to search products, manage your cart, or complete purchases!
           </small>
         </div>
       </div>

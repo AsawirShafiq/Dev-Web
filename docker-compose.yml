@@ -42,6 +42,25 @@ services:
       - grocery_network
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
+  # Chatbot Service (FastAPI with AI)
+  chatbot:
+    build: ./grocery_backend
+    container_name: grocery_chatbot
+    ports:
+      - "8001:8001"
+    env_file:
+      - ./grocery_backend/.env
+    environment:
+      PRODUCT_API_URL: http://backend:8000/products
+      BACKEND_API_URL: http://backend:8000
+    depends_on:
+      - backend
+    volumes:
+      - ./grocery_backend:/app
+    networks:
+      - grocery_network
+    command: uvicorn chatbot:app --host 0.0.0.0 --port 8001 --reload
+
   # Frontend Service (React)
   frontend:
     build: ./grocery-frontend

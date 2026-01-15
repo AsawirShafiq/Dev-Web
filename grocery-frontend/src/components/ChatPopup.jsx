@@ -11,6 +11,12 @@ export default function ChatPopup() {
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef(null);
 
+  // Voice chat states
+  const [isRecording, setIsRecording] = useState(false);
+  const [mediaRecorder, setMediaRecorder] = useState(null);
+  const [selectedVoice, setSelectedVoice] = useState('alloy');
+  const audioRef = useRef(null);
+
   useEffect(() => {
     if (isOpen && messages.length === 0) {
       setMessages([
@@ -63,6 +69,156 @@ export default function ChatPopup() {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
+    }
+  };
+
+  // Voice recording functions
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      const chunks = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          chunks.push(e.data);
+        }
+      };
+
+      recorder.onstop = async () => {
+        const audioBlob = new Blob(chunks, { type: 'audio/webm' });
+        
+        // Validate audio blob size
+        if (audioBlob.size < 100) {
+          setMessages(prev => [...prev, { 
+            role: 'assistant', 
+            content: '❌ Recording too short. Please speak for at least 1 second.' 
+          }]);
+          stream.getTracks().forEach(track => track.stop());
+          return;
+        }
+        
+        await handleVoiceMessage(audioBlob);
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      recorder.start();
+      setMediaRecorder(recorder);
+      setIsRecording(true);
+    } catch (err) {
+      console.error('Error accessing microphone:', err);
+      setMessages(prev => [...prev, { 
+        role: 'assistant', 
+        content: '❌ Could not access microphone. Please grant permission in your browser settings.' 
+      }]);
+    }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorder && isRecording) {
+      mediaRecorder.stop();
+      setIsRecording(false);
+    }
+  };
+
+  const handleVoiceMessage = async (audioBlob) => {
+    setLoading(true);
+
+    try {
+      const token = getToken();
+      
+      // Add a user message placeholder
+      setMessages(prev => [...prev, { 
+        role: 'user', 
+        content: '🎤 Processing voice message...', 
+        isVoice: true 
+      }]);
+
+      // Send voice to backend (STT -> Process -> TTS)
+      const response = await chatbotService.voiceChat(
+        audioBlob, 
+        user.id, 
+        token, 
+        selectedVoice
+      );
+
+      // Get transcribed text and response text from headers (URL-encoded)
+      const encodedTranscript = response.headers['x-transcribed-text'] || '';
+      const encodedResponse = response.headers['x-response-text'] || '';
+      
+      // Decode URL-encoded strings
+      const transcribedText = encodedTranscript ? decodeURIComponent(encodedTranscript) : 'Voice message';
+      const responseText = encodedResponse ? decodeURIComponent(encodedResponse) : 'Response';
+
+      // Update user message with transcribed text
+      setMessages(prev => {
+        const newMessages = [...prev];
+        newMessages[newMessages.length - 1] = {
+          role: 'user',
+          content: `🎤 "${transcribedText}"`,
+          isVoice: true
+        };
+        return newMessages;
+      });
+
+      // Add assistant response
+      setMessages(prev => [
+        ...prev,
+        { 
+          role: 'assistant', 
+          content: responseText,
+          hasAudio: true
+        }
+      ]);
+
+      // Play audio response
+      const audioUrl = URL.createObjectURL(response.data);
+      if (audioRef.current) {
+        audioRef.current.src = audioUrl;
+        audioRef.current.play().catch(err => {
+          console.warn('Could not auto-play audio:', err);
+          setMessages(prev => [
+            ...prev,
+            { role: 'assistant', content: '🔊 (Audio response received but autoplay blocked. Click to enable audio in your browser.)' }
+          ]);
+        });
+      }
+
+    } catch (err) {
+      console.error('Voice chat error:', err);
+      
+      // More detailed error messages
+      let errorMessage = 'Failed to process voice message.';
+      
+      if (err.response) {
+        if (err.response.status === 500) {
+          const detail = err.response.data?.detail || '';
+          if (detail.includes('file format') || detail.includes('audio')) {
+            errorMessage = 'Audio format not supported. Please try recording for longer (2-3 seconds).';
+          } else if (detail.includes('OpenAI') || detail.includes('API')) {
+            errorMessage = 'AI service error. Please try again.';
+          } else {
+            errorMessage = `Server error: ${detail.substring(0, 100)}`;
+          }
+        } else if (err.response.status === 401) {
+          errorMessage = 'Authentication failed. Please log in again.';
+        } else {
+          errorMessage = err.response.data?.detail || 'Failed to process voice message.';
+        }
+      } else if (err.request) {
+        errorMessage = 'Cannot connect to voice service. Is the chatbot service running?';
+      }
+      
+      // Remove the processing message and add error
+      setMessages(prev => {
+        const newMessages = prev.slice(0, -1); // Remove processing message
+        return [
+          ...newMessages,
+          { role: 'assistant', content: `❌ ${errorMessage}` }
+        ];
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -257,6 +413,28 @@ export default function ChatPopup() {
               borderTop: '1px solid #e5e7eb'
             }}
           >
+            {/* Voice selector */}
+            <div style={{ marginBottom: '0.5rem' }}>
+              <select 
+                value={selectedVoice}
+                onChange={(e) => setSelectedVoice(e.target.value)}
+                style={{
+                  fontSize: '0.75rem',
+                  padding: '0.25rem',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '4px',
+                  width: '120px'
+                }}
+              >
+                <option value="alloy">🔊 Alloy</option>
+                <option value="echo">🔊 Echo</option>
+                <option value="fable">🔊 Fable</option>
+                <option value="onyx">🔊 Onyx</option>
+                <option value="nova">🔊 Nova</option>
+                <option value="shimmer">🔊 Shimmer</option>
+              </select>
+            </div>
+
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               <input
                 type="text"
@@ -264,7 +442,7 @@ export default function ChatPopup() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyPress={handleKeyPress}
-                disabled={loading}
+                disabled={loading || isRecording}
                 style={{
                   flex: 1,
                   padding: '0.5rem',
@@ -274,23 +452,62 @@ export default function ChatPopup() {
                   outline: 'none'
                 }}
               />
+              
+              {/* Voice button */}
+              <button
+                onClick={isRecording ? stopRecording : startRecording}
+                disabled={loading}
+                style={{
+                  backgroundColor: isRecording ? '#ef4444' : '#3b82f6',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '0.5rem',
+                  cursor: loading ? 'not-allowed' : 'pointer',
+                  opacity: loading ? 0.5 : 1,
+                  width: '40px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                title={isRecording ? 'Stop recording' : 'Start voice chat'}
+              >
+                {isRecording ? (
+                  <i className="bi bi-stop-circle-fill"></i>
+                ) : (
+                  <i className="bi bi-mic-fill"></i>
+                )}
+              </button>
+
+              {/* Send button */}
               <button
                 onClick={handleSend}
-                disabled={!input.trim() || loading}
+                disabled={!input.trim() || loading || isRecording}
                 style={{
                   backgroundColor: '#10b981',
                   color: 'white',
                   border: 'none',
                   borderRadius: '8px',
                   padding: '0.5rem 1rem',
-                  cursor: loading || !input.trim() ? 'not-allowed' : 'pointer',
-                  opacity: loading || !input.trim() ? 0.5 : 1,
+                  cursor: loading || !input.trim() || isRecording ? 'not-allowed' : 'pointer',
+                  opacity: loading || !input.trim() || isRecording ? 0.5 : 1,
                   fontSize: '0.875rem'
                 }}
               >
                 <i className="bi bi-send-fill"></i>
               </button>
             </div>
+
+            {/* Recording indicator */}
+            {isRecording && (
+              <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: '#ef4444', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <i className="bi bi-record-circle-fill" style={{ animation: 'pulse 1.5s infinite' }}></i>
+                <span>Recording... Speak clearly for 2-3 seconds, then click stop</span>
+              </div>
+            )}
+
+            {/* Hidden audio element for playback */}
+            <audio ref={audioRef} style={{ display: 'none' }} />
           </div>
         </div>
       )}
