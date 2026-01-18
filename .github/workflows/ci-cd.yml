@@ -185,7 +185,7 @@ jobs:
              export DEBUG='${DEBUG:-False}' && \
              export REPO_NAME='${{ github.repository }}' && \
              export BRANCH_NAME='${{ github.ref_name }}' && \
-             export DEPLOY_HOST='${DEPLOY_HOST}'" bash << 'ENDSSH'
+             export DEPLOY_HOST='${DEPLOY_HOST}'" bash << ENDSSH
             set -e
             
             echo "📋 Deploying branch: ${BRANCH_NAME}"
@@ -257,20 +257,25 @@ jobs:
             
             # Create .env file for backend with GitHub Secrets
             echo "📝 Creating/updating .env file with GitHub Secrets..."
-            echo "MONGODB_URL=${MONGODB_URL}" > grocery_backend/.env
-            echo "DATABASE_NAME=${DATABASE_NAME}" >> grocery_backend/.env
-            echo "SECRET_KEY=${SECRET_KEY}" >> grocery_backend/.env
+            mkdir -p grocery_backend
+            
+            echo "MONGODB_URL=\${MONGODB_URL}" > grocery_backend/.env
+            echo "DATABASE_NAME=\${DATABASE_NAME}" >> grocery_backend/.env
+            echo "SECRET_KEY=\${SECRET_KEY}" >> grocery_backend/.env
             echo "ALGORITHM=HS256" >> grocery_backend/.env
             echo "ACCESS_TOKEN_EXPIRE_MINUTES=30" >> grocery_backend/.env
-            echo "DEBUG=${DEBUG}" >> grocery_backend/.env
-            echo "ALLOWED_ORIGINS=${ALLOWED_ORIGINS}" >> grocery_backend/.env
+            echo "DEBUG=\${DEBUG}" >> grocery_backend/.env
+            echo "ALLOWED_ORIGINS=\${ALLOWED_ORIGINS}" >> grocery_backend/.env
             echo "HOST=0.0.0.0" >> grocery_backend/.env
             echo "PORT=8000" >> grocery_backend/.env
             
             chmod 644 grocery_backend/.env
             echo "✅ .env file created with GitHub Secrets"
             echo "📄 .env file contents (sanitized):"
-            cat grocery_backend/.env | sed 's/SECRET_KEY=.*/SECRET_KEY=***HIDDEN***/g'
+            cat grocery_backend/.env | sed 's/SECRET_KEY=.*/SECRET_KEY=***HIDDEN***/g' || echo "❌ .env NOT FOUND"
+            
+            echo "🔍 Debug: Verifying .env exists..."
+            ls -lh grocery_backend/.env || echo "❌ File does not exist!"
             
             # Stop existing containers
             echo "🛑 Stopping existing containers..."
