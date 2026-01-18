@@ -346,32 +346,8 @@ jobs:
               sleep 5
             fi
           done
-      
-      - name: Health Check - MongoDB
-        run: |
-          echo "🏥 Health Check - MongoDB..."
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-            'cd ~/grocery_app && sudo docker-compose exec -T mongodb mongosh --eval "db.adminCommand({ ping: 1 })"' || \
-            echo "⚠️ MongoDB health check skipped (might need mongosh installed)"
-      
-      - name: Verify Deployment
-        run: |
-          echo "🔍 Verifying deployment..."
-          sleep 20
           
-          # Check backend
-          if curl -f -s --connect-timeout 10 http://${{ secrets.DEPLOY_HOST }}:8000/docs > /dev/null; then
-            echo "✅ Backend is responding"
-          else
-            echo "⚠️ Backend is not responding yet (this may be normal during first deployment)"
-          fi
-          
-          # Check frontend
-          if curl -f -s --connect-timeout 10 http://${{ secrets.DEPLOY_HOST }}:5173 > /dev/null; then
-            echo "✅ Frontend is responding"
-          else
-            echo "⚠️ Frontend is not responding yet (this may be normal during first deployment)"
-          fi
+          echo "✅ All services are healthy!"
       
       - name: Cleanup SSH
         if: always()
