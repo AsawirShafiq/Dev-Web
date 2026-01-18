@@ -162,17 +162,17 @@ jobs:
           ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} "echo '✅ SSH connection successful'"
       
       - name: Deploy to EC2
-        env:
-          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-          REPO_NAME: ${{ github.repository }}
-          BRANCH_NAME: ${{ github.ref_name }}
         run: |
           echo "🚀 Deploying to AWS EC2..."
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa $DEPLOY_USER@$DEPLOY_HOST bash << 'ENDSSH'
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} bash << 'ENDSSH'
             set -e
             
+            # Set variables
+            REPO_NAME="${{ github.repository }}"
+            BRANCH_NAME="${{ github.ref_name }}"
+            
             echo "📋 Deploying branch: ${BRANCH_NAME}"
+            echo "📦 Repository: ${REPO_NAME}"
             
             # Detect OS and set package manager
             if [ -f /etc/os-release ]; then
@@ -220,7 +220,7 @@ jobs:
             # Create project directory if it doesn't exist
             PROJECT_DIR=~/grocery_app
             if [ ! -d "$PROJECT_DIR" ]; then
-              echo "📁 Cloning repository..."
+              echo "📁 Cloning repository from https://github.com/${REPO_NAME}.git ..."
               git clone https://github.com/${REPO_NAME}.git $PROJECT_DIR
               cd $PROJECT_DIR
               git checkout ${BRANCH_NAME}
