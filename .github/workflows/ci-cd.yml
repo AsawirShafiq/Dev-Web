@@ -116,7 +116,7 @@ jobs:
     if: github.event_name == 'push'
     environment:
       name: production
-      url: http://${{ secrets.DEPLOY_HOST || '13.36.244.170' }}:5173
+      url: http://${{ secrets.DEPLOY_HOST }}:5173
     
     steps:
       - name: Checkout code
