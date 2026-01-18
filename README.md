@@ -275,5 +275,16 @@ This project is open source and available for educational purposes.
 - User profile management
 
 ---
+## Diagrams
+
+- Architectural Diagram
+
+![WhatsApp Image 2026-01-18 at 5 02 30 PM](https://github.com/user-attachments/assets/e896a5c6-22b5-4c36-9f04-e76081138f04)
+
+- Activity Diagram
+
+
+![WhatsApp Image 2026-01-18 at 5 02 30 PM (1)](https://github.com/user-attachments/assets/494c75f4-2356-4f2c-810c-d7c72d6f75ad)
+
 
 **Happy Shopping! 🛒**
