@@ -255,29 +255,31 @@ jobs:
               git pull origin ${BRANCH_NAME}
             fi
             
-            # Create .env file for backend with GitHub Secrets
+            # Create .env file for backend with GitHub Secrets (NO LEADING SPACES!)
             echo "📝 Creating/updating .env file with GitHub Secrets..."
-            cat > grocery_backend/.env << ENVEOF
-            # Database Configuration
-            MONGODB_URL=${MONGODB_URL}
-            DATABASE_NAME=${DATABASE_NAME}
-
-            # JWT Configuration
-            SECRET_KEY=${SECRET_KEY}
-            ALGORITHM=HS256
-            ACCESS_TOKEN_EXPIRE_MINUTES=30
-
-            # Application Settings
-            DEBUG=${DEBUG}
-            ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
-
-            # Server Configuration
-            HOST=0.0.0.0
-            PORT=8000
-            ENVEOF
+            cat > grocery_backend/.env << 'ENVEOF'
+MONGODB_URL=${MONGODB_URL}
+DATABASE_NAME=${DATABASE_NAME}
+SECRET_KEY=${SECRET_KEY}
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+DEBUG=${DEBUG}
+ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+HOST=0.0.0.0
+PORT=8000
+ENVEOF
+            
+            # Replace variables in .env file
+            sed -i "s|\${MONGODB_URL}|${MONGODB_URL}|g" grocery_backend/.env
+            sed -i "s|\${DATABASE_NAME}|${DATABASE_NAME}|g" grocery_backend/.env
+            sed -i "s|\${SECRET_KEY}|${SECRET_KEY}|g" grocery_backend/.env
+            sed -i "s|\${DEBUG}|${DEBUG}|g" grocery_backend/.env
+            sed -i "s|\${ALLOWED_ORIGINS}|${ALLOWED_ORIGINS}|g" grocery_backend/.env
             
             chmod 644 grocery_backend/.env
             echo "✅ .env file created with GitHub Secrets"
+            echo "📄 .env file contents (sanitized):"
+            cat grocery_backend/.env | sed 's/SECRET_KEY=.*/SECRET_KEY=***HIDDEN***/g'
             
             # Stop existing containers
             echo "🛑 Stopping existing containers..."
@@ -301,8 +303,65 @@ jobs:
             
             # Show logs
             echo "📋 Recent logs:"
-            sudo docker-compose logs --tail=50
+            sudo docker-compose logs --tail=100
+            
+            # Check if containers are running
+            echo "🔍 Verifying containers..."
+            if ! sudo docker-compose ps | grep -q "Up"; then
+              echo "❌ Containers failed to start!"
+              echo "📋 Full container logs:"
+              sudo docker-compose logs
+              exit 1
+            fi
+            
+            echo "✅ Containers are running!"
           ENDSSH
+      
+      - name: Health Check - Backend
+        run: |
+          echo "🏥 Health Check - Backend API..."
+          sleep 10
+          
+          for i in {1..10}; do
+            echo "Attempt $i/10: Checking http://${{ secrets.DEPLOY_HOST }}:8000/docs"
+            if curl -f -s --max-time 10 http://${{ secrets.DEPLOY_HOST }}:8000/docs > /dev/null 2>&1; then
+              echo "✅ Backend API is healthy!"
+              break
+            else
+              if [ $i -eq 10 ]; then
+                echo "❌ Backend API failed health check after 10 attempts"
+                exit 1
+              fi
+              echo "⏳ Backend not ready yet, waiting 5 seconds..."
+              sleep 5
+            fi
+          done
+      
+      - name: Health Check - Frontend
+        run: |
+          echo "🏥 Health Check - Frontend..."
+          
+          for i in {1..10}; do
+            echo "Attempt $i/10: Checking http://${{ secrets.DEPLOY_HOST }}:5173"
+            if curl -f -s --max-time 10 http://${{ secrets.DEPLOY_HOST }}:5173 > /dev/null 2>&1; then
+              echo "✅ Frontend is healthy!"
+              break
+            else
+              if [ $i -eq 10 ]; then
+                echo "❌ Frontend failed health check after 10 attempts"
+                exit 1
+              fi
+              echo "⏳ Frontend not ready yet, waiting 5 seconds..."
+              sleep 5
+            fi
+          done
+      
+      - name: Health Check - MongoDB
+        run: |
+          echo "🏥 Health Check - MongoDB..."
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
+            'cd ~/grocery_app && sudo docker-compose exec -T mongodb mongosh --eval "db.adminCommand({ ping: 1 })"' || \
+            echo "⚠️ MongoDB health check skipped (might need mongosh installed)"
       
       - name: Verify Deployment
         run: |
