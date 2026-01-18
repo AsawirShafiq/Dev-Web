@@ -186,15 +186,15 @@ jobs:
             if command -v apt-get &> /dev/null; then
               # Ubuntu/Debian
               sudo apt-get update -y
-              sudo apt-get install -y docker.io git curl
+              sudo apt-get install -y docker.io git
             elif command -v yum &> /dev/null; then
-              # Amazon Linux/CentOS/RHEL
+              # Amazon Linux 2
               sudo yum update -y
-              sudo yum install -y docker git curl
+              sudo yum install -y docker git
             elif command -v dnf &> /dev/null; then
-              # Fedora/newer RHEL
+              # Amazon Linux 2023/Fedora/newer RHEL
               sudo dnf update -y
-              sudo dnf install -y docker git curl
+              sudo dnf install -y docker git
             else
               echo "❌ Unsupported package manager"
               exit 1
@@ -205,6 +205,8 @@ jobs:
               echo "📦 Installing docker-compose..."
               sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
               sudo chmod +x /usr/local/bin/docker-compose
+            else
+              echo "✅ docker-compose already installed"
             fi
             
             # Start Docker service
@@ -241,7 +243,7 @@ jobs:
             
             # Stop existing containers
             echo "🛑 Stopping existing containers..."
-            sudo docker-compose down --remove-orphans || true
+            sudo docker-compose down --remove-orphans 2>/dev/null || true
             
             # Remove old images
             echo "🗑️ Cleaning up old Docker images..."
