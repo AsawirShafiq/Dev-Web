@@ -174,10 +174,31 @@ jobs:
             
             echo "📋 Deploying branch: ${BRANCH_NAME}"
             
-            # Update system packages
+            # Detect OS and set package manager
+            if [ -f /etc/os-release ]; then
+              . /etc/os-release
+              OS=$ID
+              echo "🖥️ Detected OS: $OS"
+            fi
+            
+            # Update system packages based on OS
             echo "📦 Updating system packages..."
-            sudo apt update -y
-            sudo apt install -y docker.io git curl
+            if command -v apt-get &> /dev/null; then
+              # Ubuntu/Debian
+              sudo apt-get update -y
+              sudo apt-get install -y docker.io git curl
+            elif command -v yum &> /dev/null; then
+              # Amazon Linux/CentOS/RHEL
+              sudo yum update -y
+              sudo yum install -y docker git curl
+            elif command -v dnf &> /dev/null; then
+              # Fedora/newer RHEL
+              sudo dnf update -y
+              sudo dnf install -y docker git curl
+            else
+              echo "❌ Unsupported package manager"
+              exit 1
+            fi
             
             # Install docker-compose if not present
             if ! command -v docker-compose &> /dev/null; then
@@ -187,8 +208,9 @@ jobs:
             fi
             
             # Start Docker service
-            sudo systemctl start docker
-            sudo systemctl enable docker
+            echo "🐳 Starting Docker service..."
+            sudo systemctl start docker || sudo service docker start
+            sudo systemctl enable docker || sudo chkconfig docker on
             
             # Add user to docker group
             sudo usermod -aG docker $USER || true
