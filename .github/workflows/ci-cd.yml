@@ -4,9 +4,11 @@ on:
   push:
     branches:
       - huzaifa
+      - main
   pull_request:
     branches:
       - huzaifa
+      - main
 
 env:
   BACKEND_IMAGE: grocery_backend
