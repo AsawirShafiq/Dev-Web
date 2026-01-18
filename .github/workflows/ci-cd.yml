@@ -131,6 +131,7 @@ jobs:
       
       - name: Validate Secrets
         run: |
+          echo "🔍 Validating GitHub Secrets and Variables..."
           if [ -z "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
             echo "❌ SSH_PRIVATE_KEY secret is not set"
             exit 1
@@ -144,12 +145,17 @@ jobs:
             exit 1
           fi
           if [ -z "${{ secrets.MONGODB_URL }}" ]; then
-            echo "⚠️ MONGODB_URL secret is not set, using default"
+            echo "❌ MONGODB_URL secret is not set"
+            exit 1
           fi
           if [ -z "${{ secrets.SECRET_KEY }}" ]; then
-            echo "⚠️ SECRET_KEY secret is not set, using default"
+            echo "❌ SECRET_KEY secret is not set"
+            exit 1
           fi
-          echo "✅ Required secrets are configured"
+          echo "✅ All required secrets are configured"
+          echo "✅ Variables: DATABASE_NAME=${{ vars.DATABASE_NAME || 'grocery_db' }}"
+          echo "✅ Variables: DEBUG=${{ vars.DEBUG || 'False' }}"
+          echo "✅ Variables: ALLOWED_ORIGINS=${{ vars.ALLOWED_ORIGINS || 'http://localhost:5173' }}"
           echo "🌐 Deployment URL: http://${{ secrets.DEPLOY_HOST }}:5173"
       
       - name: Setup SSH
@@ -169,20 +175,31 @@ jobs:
       
       - name: Deploy to EC2
         env:
+          # Secrets (sensitive data)
           MONGODB_URL: ${{ secrets.MONGODB_URL }}
-          DATABASE_NAME: ${{ secrets.DATABASE_NAME }}
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
-          ALLOWED_ORIGINS: ${{ secrets.ALLOWED_ORIGINS }}
-          DEBUG: ${{ secrets.DEBUG }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          # Variables (non-sensitive config)
+          DATABASE_NAME: ${{ vars.DATABASE_NAME || 'grocery_db' }}
+          ALLOWED_ORIGINS: ${{ vars.ALLOWED_ORIGINS || 'http://localhost:5173' }}
+          DEBUG: ${{ vars.DEBUG || 'False' }}
+          ALGORITHM: ${{ vars.ALGORITHM || 'HS256' }}
+          ACCESS_TOKEN_EXPIRE_MINUTES: ${{ vars.ACCESS_TOKEN_EXPIRE_MINUTES || '30' }}
+          HOST: ${{ vars.HOST || '0.0.0.0' }}
+          PORT: ${{ vars.PORT || '8000' }}
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
         run: |
           echo "🚀 Deploying to AWS EC2..."
           ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }} \
-            "export MONGODB_URL='${MONGODB_URL:-mongodb://mongodb:27017/grocery_db}' && \
-             export DATABASE_NAME='${DATABASE_NAME:-grocery_db}' && \
+            "export MONGODB_URL='${MONGODB_URL}' && \
+             export DATABASE_NAME='${DATABASE_NAME}' && \
              export SECRET_KEY='${SECRET_KEY}' && \
-             export ALLOWED_ORIGINS='${ALLOWED_ORIGINS:-http://localhost:5173,http://${DEPLOY_HOST}:5173}' && \
-             export DEBUG='${DEBUG:-False}' && \
+             export ALLOWED_ORIGINS='${ALLOWED_ORIGINS}' && \
+             export DEBUG='${DEBUG}' && \
+             export ALGORITHM='${ALGORITHM}' && \
+             export ACCESS_TOKEN_EXPIRE_MINUTES='${ACCESS_TOKEN_EXPIRE_MINUTES}' && \
+             export HOST='${HOST}' && \
+             export PORT='${PORT}' && \
              export REPO_NAME='${{ github.repository }}' && \
              export BRANCH_NAME='${{ github.ref_name }}' && \
              export DEPLOY_HOST='${DEPLOY_HOST}'" bash << ENDSSH
@@ -255,24 +272,24 @@ jobs:
               git pull origin ${BRANCH_NAME}
             fi
             
-            # Create .env file for backend with GitHub Secrets
-            echo "📝 Creating/updating .env file with GitHub Secrets..."
+            # Create .env file for backend with GitHub Secrets and Variables
+            echo "📝 Creating/updating .env file with GitHub configuration..."
             mkdir -p grocery_backend
             
             echo "MONGODB_URL=\${MONGODB_URL}" > grocery_backend/.env
             echo "DATABASE_NAME=\${DATABASE_NAME}" >> grocery_backend/.env
             echo "SECRET_KEY=\${SECRET_KEY}" >> grocery_backend/.env
-            echo "ALGORITHM=HS256" >> grocery_backend/.env
-            echo "ACCESS_TOKEN_EXPIRE_MINUTES=30" >> grocery_backend/.env
+            echo "ALGORITHM=\${ALGORITHM}" >> grocery_backend/.env
+            echo "ACCESS_TOKEN_EXPIRE_MINUTES=\${ACCESS_TOKEN_EXPIRE_MINUTES}" >> grocery_backend/.env
             echo "DEBUG=\${DEBUG}" >> grocery_backend/.env
             echo "ALLOWED_ORIGINS=\${ALLOWED_ORIGINS}" >> grocery_backend/.env
-            echo "HOST=0.0.0.0" >> grocery_backend/.env
-            echo "PORT=8000" >> grocery_backend/.env
+            echo "HOST=\${HOST}" >> grocery_backend/.env
+            echo "PORT=\${PORT}" >> grocery_backend/.env
             
             chmod 644 grocery_backend/.env
-            echo "✅ .env file created with GitHub Secrets"
+            echo "✅ .env file created with GitHub Secrets and Variables"
             echo "📄 .env file contents (sanitized):"
-            cat grocery_backend/.env | sed 's/SECRET_KEY=.*/SECRET_KEY=***HIDDEN***/g' || echo "❌ .env NOT FOUND"
+            cat grocery_backend/.env | sed 's/SECRET_KEY=.*/SECRET_KEY=***HIDDEN***/' | sed 's/MONGODB_URL=.*/MONGODB_URL=***HIDDEN***/' || echo "❌ .env NOT FOUND"
             
             echo "🔍 Debug: Verifying .env exists..."
             ls -lh grocery_backend/.env || echo "❌ File does not exist!"
