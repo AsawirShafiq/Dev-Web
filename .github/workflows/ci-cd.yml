@@ -255,26 +255,17 @@ jobs:
               git pull origin ${BRANCH_NAME}
             fi
             
-            # Create .env file for backend with GitHub Secrets (NO LEADING SPACES!)
+            # Create .env file for backend with GitHub Secrets
             echo "📝 Creating/updating .env file with GitHub Secrets..."
-            cat > grocery_backend/.env << 'ENVEOF'
-MONGODB_URL=${MONGODB_URL}
-DATABASE_NAME=${DATABASE_NAME}
-SECRET_KEY=${SECRET_KEY}
-ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=30
-DEBUG=${DEBUG}
-ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
-HOST=0.0.0.0
-PORT=8000
-ENVEOF
-            
-            # Replace variables in .env file
-            sed -i "s|\${MONGODB_URL}|${MONGODB_URL}|g" grocery_backend/.env
-            sed -i "s|\${DATABASE_NAME}|${DATABASE_NAME}|g" grocery_backend/.env
-            sed -i "s|\${SECRET_KEY}|${SECRET_KEY}|g" grocery_backend/.env
-            sed -i "s|\${DEBUG}|${DEBUG}|g" grocery_backend/.env
-            sed -i "s|\${ALLOWED_ORIGINS}|${ALLOWED_ORIGINS}|g" grocery_backend/.env
+            echo "MONGODB_URL=\${MONGODB_URL}" > grocery_backend/.env
+            echo "DATABASE_NAME=\${DATABASE_NAME}" >> grocery_backend/.env
+            echo "SECRET_KEY=\${SECRET_KEY}" >> grocery_backend/.env
+            echo "ALGORITHM=HS256" >> grocery_backend/.env
+            echo "ACCESS_TOKEN_EXPIRE_MINUTES=30" >> grocery_backend/.env
+            echo "DEBUG=\${DEBUG}" >> grocery_backend/.env
+            echo "ALLOWED_ORIGINS=\${ALLOWED_ORIGINS}" >> grocery_backend/.env
+            echo "HOST=0.0.0.0" >> grocery_backend/.env
+            echo "PORT=8000" >> grocery_backend/.env
             
             chmod 644 grocery_backend/.env
             echo "✅ .env file created with GitHub Secrets"
