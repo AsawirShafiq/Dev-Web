@@ -276,15 +276,15 @@ jobs:
             echo "📝 Creating/updating .env file with GitHub configuration..."
             mkdir -p grocery_backend
             
-            echo "MONGODB_URL=\${MONGODB_URL}" > grocery_backend/.env
-            echo "DATABASE_NAME=\${DATABASE_NAME}" >> grocery_backend/.env
-            echo "SECRET_KEY=\${SECRET_KEY}" >> grocery_backend/.env
-            echo "ALGORITHM=\${ALGORITHM}" >> grocery_backend/.env
-            echo "ACCESS_TOKEN_EXPIRE_MINUTES=\${ACCESS_TOKEN_EXPIRE_MINUTES}" >> grocery_backend/.env
-            echo "DEBUG=\${DEBUG}" >> grocery_backend/.env
-            echo "ALLOWED_ORIGINS=\${ALLOWED_ORIGINS}" >> grocery_backend/.env
-            echo "HOST=\${HOST}" >> grocery_backend/.env
-            echo "PORT=\${PORT}" >> grocery_backend/.env
+            echo "MONGODB_URL=${MONGODB_URL}" > grocery_backend/.env
+            echo "DATABASE_NAME=${DATABASE_NAME}" >> grocery_backend/.env
+            echo "SECRET_KEY=${SECRET_KEY}" >> grocery_backend/.env
+            echo "ALGORITHM=${ALGORITHM}" >> grocery_backend/.env
+            echo "ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES}" >> grocery_backend/.env
+            echo "DEBUG=${DEBUG}" >> grocery_backend/.env
+            echo "ALLOWED_ORIGINS=${ALLOWED_ORIGINS}" >> grocery_backend/.env
+            echo "HOST=${HOST}" >> grocery_backend/.env
+            echo "PORT=${PORT}" >> grocery_backend/.env
             
             chmod 644 grocery_backend/.env
             echo "✅ .env file created with GitHub Secrets and Variables"
