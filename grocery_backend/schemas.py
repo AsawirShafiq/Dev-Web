@@ -35,14 +35,16 @@ class UserResponse(UserBase):
 
 class ProductBase(BaseModel):
     name: str
-    brand: str
-    description: str
-    price: float
+    brand: Optional[str] = None
+    description: Optional[str] = None
+    price: float = 0.0
     category: Optional[str] = None        # e.g., "Electronics"
     stock: int = 0                        # how many units available
-    images: Optional[List[str]] = []      # array of image URLs
+    image_url: Optional[str] = None       # URL to product image
     rating: Optional[float] = 0.0         # overall rating
     tags: Optional[List[str]] = []        # e.g. ["laptop", "gaming"]
+    barcode: Optional[str] = None         # product barcode from OpenFoodFacts
+    source: Optional[str] = None          # "manual" or "openfoodfacts"
 
 
 class ProductCreate(ProductBase):
@@ -56,7 +58,7 @@ class ProductUpdate(BaseModel):
     price: Optional[float]
     category: Optional[str]
     stock: Optional[int]
-    images: Optional[List[str]]
+    image_url: Optional[str]
     rating: Optional[float]
     tags: Optional[List[str]]
 
@@ -68,6 +70,8 @@ class ProductResponse(ProductBase):
 class InvoiceProduct(BaseModel):
     product_id: str
     quantity: int
+    product_name: Optional[str] = None
+    price: Optional[float] = None
 
 class InvoiceCreate(BaseModel):
     user_id: str
@@ -106,3 +110,7 @@ class CartItemCreate(CartItemBase):
 class CartItemResponse(CartItemBase):
     id: str
     user_id: str
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str

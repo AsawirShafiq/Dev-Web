@@ -1,6 +1,4 @@
-#!/bin/sh
-'''exec' "/home/huzaifa/Desktop/Trinity Web/grocery_backend/venv/bin/python3" "$0" "$@"
-' '''
+#!/home/asawir-shafiq-khokhar/Desktop/Asawir/Programs/Dev-Web/grocery_backend/venv/bin/python3
 # -*- coding: utf-8 -*-
 import re
 import sys
