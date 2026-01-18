@@ -116,7 +116,6 @@ jobs:
     if: github.event_name == 'push'
     environment:
       name: production
-      url: http://${{ secrets.DEPLOY_HOST }}:5173
     
     steps:
       - name: Checkout code
@@ -145,6 +144,7 @@ jobs:
             exit 1
           fi
           echo "✅ All required secrets are configured"
+          echo "🌐 Deployment URL: http://${{ secrets.DEPLOY_HOST }}:5173"
       
       - name: Setup SSH
         run: |
